@@ -738,6 +738,12 @@ int main() {
   assert(4, sizeof(2147483647), "sizeof(2147483647)");
   assert(8, sizeof(2147483648), "sizeof(2147483648)");
 
+  typedef enum { TestEnumA = 1, TestEnumB } TestEnum;
+  TestEnum enumValue = TestEnumB;
+  TestEnum *enumValue2 = &enumValue;
+  assert(1, enumValue - 1, "enumValue - 1");
+  assert(0, *enumValue2 - 2, "*enumValue2 - 2");
+
   printf("OK\n");
   return 0;
 }

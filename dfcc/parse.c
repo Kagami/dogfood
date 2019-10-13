@@ -298,8 +298,8 @@ static Type *basetype(StorageClass *sclass) {
       else if (consume("extern"))
         *sclass |= EXTERN;
 
-      // if (*sclass & (*sclass - 1))
-      //   error_tok(tok, "typedef, static and extern may not be used together");
+      if (*sclass & (*sclass - 1))
+        error_tok(tok, "typedef, static and extern may not be used together");
       continue;
     }
 
