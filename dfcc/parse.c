@@ -100,7 +100,7 @@ static Node *primary(void);
 // program = (global-var | function)*
 Program *parse(void) {
   gCtx = calloc(1, sizeof(ParserContext));
-  Function head = {};
+  Function head = { 0 };
   Function *cur = &head;
 
   while (!at_eof()) {
@@ -487,7 +487,7 @@ static Type *struct_decl(void) {
   }
 
   // Read struct members.
-  Member head = {};
+  Member head = { 0 };
   Member *cur = &head;
 
   while (!consume("}")) {
@@ -669,7 +669,7 @@ static Function *function(void) {
   }
 
   // Read function body
-  Node head = {};
+  Node head = { 0 };
   Node *cur = &head;
   expect("{");
   while (!consume("}")) {
@@ -707,7 +707,7 @@ static Initializer *new_init_zero(Initializer *cur, int nbytes) {
 }
 
 static Initializer *gvar_init_string(char *p, int len) {
-  Initializer head = {};
+  Initializer head = { 0 };
   Initializer *cur = &head;
   for (int i = 0; i < len; i++)
     cur = new_init_val(cur, 1, p[i]);
@@ -790,7 +790,9 @@ static Initializer *gvar_initializer2(Initializer *cur, Type *ty) {
     int i = 0;
     int limit = ty->is_incomplete ? INT_MAX : ty->array_len;
 
-    if (!peek("}")) {
+    if (peek("}")) {
+      warn_tok(gToken, "empty initializer braces");
+    } else {
       do {
         cur = gvar_initializer2(cur, ty->base);
         i++;
@@ -815,7 +817,9 @@ static Initializer *gvar_initializer2(Initializer *cur, Type *ty) {
     bool open = consume("{");
     Member *mem = ty->members;
 
-    if (!peek("}")) {
+    if (peek("}")) {
+      warn_tok(gToken, "empty initializer braces");
+    } else {
       do {
         cur = gvar_initializer2(cur, mem->ty);
         cur = emit_struct_padding(cur, ty, mem);
@@ -849,7 +853,7 @@ static Initializer *gvar_initializer2(Initializer *cur, Type *ty) {
 }
 
 static Initializer *gvar_initializer(Type *ty) {
-  Initializer head = {};
+  Initializer head = { 0 };
   gvar_initializer2(&head, ty);
   return head.next;
 }
@@ -993,7 +997,9 @@ static Node *lvar_initializer2(Node *cur, Var *var, Type *ty, Designator *desg) 
     int i = 0;
     int limit = ty->is_incomplete ? INT_MAX : ty->array_len;
 
-    if (!peek("}")) {
+    if (peek("}")) {
+      warn_tok(gToken, "empty initializer braces");
+    } else {
       do {
         Designator desg2 = {desg, i++};
         cur = lvar_initializer2(cur, var, ty->base, &desg2);
@@ -1021,7 +1027,9 @@ static Node *lvar_initializer2(Node *cur, Var *var, Type *ty, Designator *desg) 
     bool open = consume("{");
     Member *mem = ty->members;
 
-    if (!peek("}")) {
+    if (peek("}")) {
+      warn_tok(gToken, "empty initializer braces");
+    } else {
       do {
         Designator desg2 = {desg, 0, mem};
         cur = lvar_initializer2(cur, var, mem->ty, &desg2);
@@ -1048,7 +1056,7 @@ static Node *lvar_initializer2(Node *cur, Var *var, Type *ty, Designator *desg) 
 }
 
 static Node *lvar_initializer(Var *var, Token *tok) {
-  Node head = {};
+  Node head = { 0 };
   lvar_initializer2(&head, var, var->ty, NULL);
 
   Node *node = new_node(ND_BLOCK, tok);
@@ -1266,7 +1274,7 @@ static Node *stmt2(void) {
   }
 
   if ((tok = consume("{"))) {
-    Node head = {};
+    Node head = { 0 };
     Node *cur = &head;
 
     Scope *sc = enter_scope();

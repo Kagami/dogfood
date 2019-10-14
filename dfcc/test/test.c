@@ -39,6 +39,8 @@ int g24=3;
 int *g25=&g24;
 int g26[3] = {1, 2, 3};
 int *g27 = g26 + 1;
+// int g28[3] = {};
+// struct G29 {int a;}; struct G29 g29 = {};
 
 typedef struct Tree {
   int val;
@@ -546,9 +548,9 @@ int main() {
   assert(3, ({ int x[3]={1,2,3}; x[2]; }), "int x[3]={1,2,3}; x[0];");
   assert(3, ({ int x[3]={1,2,3,}; x[2]; }), "int x[3]={1,2,3}; x[0];");
 
-  assert(0, ({ int x[3]={}; x[0]; }), "int x[3]={}; x[0];");
-  assert(0, ({ int x[3]={}; x[1]; }), "int x[3]={}; x[1];");
-  assert(0, ({ int x[3]={}; x[2]; }), "int x[3]={}; x[2];");
+  assert(0, ({ int x[3]={0}; x[0]; }), "int x[3]={}; x[0];");
+  assert(0, ({ int x[3]={0}; x[1]; }), "int x[3]={}; x[1];");
+  assert(0, ({ int x[3]={0}; x[2]; }), "int x[3]={}; x[2];");
 
   assert(2, ({ int x[2][3]={{1,2,3},{4,5,6}}; x[0][1]; }), "int x[2][3]={{1,2,3},{4,5,6}}; x[0][1];");
   assert(4, ({ int x[2][3]={{1,2,3},{4,5,6}}; x[1][0]; }), "int x[2][3]={{1,2,3},{4,5,6}}; x[1][0];");
@@ -584,8 +586,8 @@ int main() {
 
   assert(0, ({ struct {int a; int b;} x[2]={{1,2}}; x[1].b; }), "struct {int a; int b;} x[2]={{1,2}}; x[1].b;");
 
-  assert(0, ({ struct {int a; int b;} x={}; x.a; }), "struct {int a; int b;} x={}; x.a;");
-  assert(0, ({ struct {int a; int b;} x={}; x.b; }), "struct {int a; int b;} x={}; x.b;");
+  assert(0, ({ struct {int a; int b;} x={0}; x.a; }), "struct {int a; int b;} x={}; x.a;");
+  assert(0, ({ struct {int a; int b;} x={0}; x.b; }), "struct {int a; int b;} x={}; x.b;");
 
   assert(3, g3, "g3");
   assert(4, g4, "g4");
