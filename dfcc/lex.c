@@ -274,7 +274,7 @@ void tokenize(char *filename, char *user_input) {
   gFilename = filename;
   gUserInput = user_input;
   char *p = gUserInput;
-  Token head = {};
+  Token head = { 0 };
   Token *cur = &head;
 
   while (*p) {
