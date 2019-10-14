@@ -1,31 +1,32 @@
-CFLAGS = -Wall -g
+CFLAGS = -Wall -pedantic -g
 LDFLAGS = -no-pie
 SRCS = $(wildcard *.c)
-OBJS = $(addprefix .tmp/,$(SRCS:.c=.o))
+OBJS1 = $(addprefix .tmp1/,$(SRCS:.c=.o))
 OBJS2 = $(addprefix .tmp2/,$(SRCS:.c=.o))
 
 all: dfcc
 
-dfcc: $(OBJS)
-	$(CC) $(LDFLAGS) -o $@ $(OBJS)
+stage1: $(OBJS1)
+	$(CC) $(LDFLAGS) -o $@ $(OBJS1)
 
-dfcc2: dfcc $(OBJS2)
+stage2: stage1 $(OBJS2)
 	$(CC) $(LDFLAGS) -o $@ $(OBJS2)
 
-test: dfcc test/test.c test/extern.c
-	./dfcc test/test.c > .tmp/test.s
-	$(CC) $(CFLAGS) -o .tmp/extern.o -c test/extern.c
-	$(CC) $(LDFLAGS) -o .tmp/test .tmp/test.s .tmp/extern.o
-	.tmp/test
+dfcc: stage2
+	cp $< $@
 
-test2: dfcc2 test/test.c test/extern.c
-	./dfcc2 test/test.c > .tmp2/test.s
+test: stage1 stage2 test/test.c test/extern.c
+	./stage1 test/test.c > .tmp1/test.s
+	./stage2 test/test.c > .tmp2/test.s
+	$(CC) $(CFLAGS) -o .tmp1/extern.o -c test/extern.c
 	$(CC) $(CFLAGS) -o .tmp2/extern.o -c test/extern.c
+	$(CC) $(LDFLAGS) -o .tmp1/test .tmp1/test.s .tmp1/extern.o
 	$(CC) $(LDFLAGS) -o .tmp2/test .tmp2/test.s .tmp2/extern.o
+	.tmp1/test
 	.tmp2/test
 
-.tmp/%.o: %.c dfcc.h
-	@mkdir -p .tmp
+.tmp1/%.o: %.c dfcc.h
+	@mkdir -p .tmp1
 	$(CC) $(CFLAGS) -o $@ -c $<
 
 .tmp2/%.o: %.c dfcc.h
@@ -39,10 +40,10 @@ test2: dfcc2 test/test.c test/extern.c
 		| sed 's/\bNULL\b/0/g' \
 		| sed 's/INT_MAX/2147483647/g' \
 		> .tmp2/$<
-	./dfcc .tmp2/$< > .tmp2/$<.s
+	./stage1 .tmp2/$< > .tmp2/$<.s
 	$(CC) $(CFLAGS) -o $@ -c .tmp2/$<.s
 
 clean:
-	rm -rf dfcc dfcc2 .tmp .tmp2
+	rm -rf stage1 stage2 dfcc .tmp1 .tmp2
 
 .PHONY: test
