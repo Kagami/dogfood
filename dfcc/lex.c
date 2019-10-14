@@ -1,8 +1,8 @@
 #include "dfcc.h"
 
-char *filename;
-char *user_input;
-Token *token;
+static char *gFilename;
+static char *gUserInput;
+Token *gToken;
 
 // Reports an error and exit.
 void error(char *fmt, ...) {
@@ -20,7 +20,7 @@ void error(char *fmt, ...) {
 static void verror_at(char *loc, char *fmt, va_list ap) {
   // Find a line containing `loc`.
   char *line = loc;
-  while (user_input < line && line[-1] != '\n')
+  while (gUserInput < line && line[-1] != '\n')
     line--;
 
   char *end = loc;
@@ -29,12 +29,12 @@ static void verror_at(char *loc, char *fmt, va_list ap) {
 
   // Get a line number.
   int line_num = 1;
-  for (char *p = user_input; p < line; p++)
+  for (char *p = gUserInput; p < line; p++)
     if (*p == '\n')
       line_num++;
 
   // Print out the line.
-  int indent = fprintf(stderr, "%s:%d: ", filename, line_num);
+  int indent = fprintf(stderr, "%s:%d: ", gFilename, line_num);
   fprintf(stderr, "%.*s\n", (int)(end - line), line);
 
   // Show the error message.
@@ -69,49 +69,49 @@ void warn_tok(Token *tok, char *fmt, ...) {
 
 // Consumes the current token if it matches `op`.
 Token *consume(char *op) {
-  if (token->kind != TK_RESERVED || strlen(op) != token->len ||
-      strncmp(token->str, op, token->len))
+  if (gToken->kind != TK_RESERVED || strlen(op) != gToken->len ||
+      strncmp(gToken->str, op, gToken->len))
     return NULL;
-  Token *t = token;
-  token = token->next;
+  Token *t = gToken;
+  gToken = gToken->next;
   return t;
 }
 
 // Returns true if the current token matches a given string.
 Token *peek(char *s) {
-  if (token->kind != TK_RESERVED || strlen(s) != token->len ||
-      strncmp(token->str, s, token->len))
+  if (gToken->kind != TK_RESERVED || strlen(s) != gToken->len ||
+      strncmp(gToken->str, s, gToken->len))
     return NULL;
-  return token;
+  return gToken;
 }
 
 // Consumes the current token if it is an identifier.
 Token *consume_ident(void) {
-  if (token->kind != TK_IDENT)
+  if (gToken->kind != TK_IDENT)
     return NULL;
-  Token *t = token;
-  token = token->next;
+  Token *t = gToken;
+  gToken = gToken->next;
   return t;
 }
 
 // Ensure that the current token is a given string
 void expect(char *s) {
   if (!peek(s))
-    error_tok(token, "expected \"%s\"", s);
-  token = token->next;
+    error_tok(gToken, "expected \"%s\"", s);
+  gToken = gToken->next;
 }
 
 // Ensure that the current token is TK_IDENT.
 char *expect_ident(void) {
-  if (token->kind != TK_IDENT)
-    error_tok(token, "expected an identifier");
-  char *s = strndup(token->str, token->len);
-  token = token->next;
+  if (gToken->kind != TK_IDENT)
+    error_tok(gToken, "expected an identifier");
+  char *s = strndup(gToken->str, gToken->len);
+  gToken = gToken->next;
   return s;
 }
 
 bool at_eof(void) {
-  return token->kind == TK_EOF;
+  return gToken->kind == TK_EOF;
 }
 
 // Create a new token and add it as the next token of `cur`.
@@ -269,9 +269,11 @@ static Token *read_int_literal(Token *cur, char *start) {
   return tok;
 }
 
-// Tokenize `user_input` and returns new tokens.
-Token *tokenize(void) {
-  char *p = user_input;
+// Tokenize `user_input`.
+void tokenize(char *filename, char *user_input) {
+  gFilename = filename;
+  gUserInput = user_input;
+  char *p = gUserInput;
   Token head = {};
   Token *cur = &head;
 
@@ -348,5 +350,5 @@ Token *tokenize(void) {
   }
 
   new_token(TK_EOF, cur, p, 0);
-  return head.next;
+  gToken = head.next;
 }

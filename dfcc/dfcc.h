@@ -52,11 +52,8 @@ Token *consume_ident(void);
 void expect(char *op);
 char *expect_ident(void);
 bool at_eof(void);
-Token *tokenize(void);
-
-extern char *filename;
-extern char *user_input;
-extern Token *token;
+void tokenize(char *filename, char *user_input);
+extern Token *gToken;
 
 //
 // parse.c

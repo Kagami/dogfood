@@ -1,4 +1,4 @@
-CFLAGS = -g -static -fno-common
+CFLAGS = -g
 LDFLAGS = -no-pie
 SRCS = $(wildcard *.c)
 OBJS = $(addprefix .tmp/,$(SRCS:.c=.o))

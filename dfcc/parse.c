@@ -213,7 +213,7 @@ static Node *primary(void);
 // Determine whether the next top-level item is a function
 // or a global variable by looking ahead input tokens.
 static bool is_function(void) {
-  Token *tok = token;
+  Token *tok = gToken;
   bool isfunc = false;
 
   StorageClass sclass;
@@ -225,7 +225,7 @@ static bool is_function(void) {
     isfunc = name && consume("(");
   }
 
-  token = tok;
+  gToken = tok;
   return isfunc;
 }
 
@@ -264,7 +264,7 @@ Program *program(void) {
 // "signed" can appear anywhere if type is short, int, long or long long.
 static Type *basetype(StorageClass *sclass) {
   if (!is_typename())
-    error_tok(token, "typename expected");
+    error_tok(gToken, "typename expected");
 
   enum {
     VOID   = 1 << 0,
@@ -284,7 +284,7 @@ static Type *basetype(StorageClass *sclass) {
     *sclass = 0;
 
   while (is_typename()) {
-    Token *tok = token;
+    Token *tok = gToken;
 
     // Handle storage class specifiers.
     if (peek("typedef") || peek("static") || peek("extern")) {
@@ -315,9 +315,9 @@ static Type *basetype(StorageClass *sclass) {
       } else if (peek("enum")) {
         ty = enum_specifier();
       } else {
-        ty = find_typedef(token);
+        ty = find_typedef(gToken);
         assert(ty);
-        token = token->next;
+        gToken = gToken->next;
       }
 
       counter |= OTHER;
@@ -425,7 +425,7 @@ static Type *type_suffix(Type *ty) {
     expect("]");
   }
 
-  Token *tok = token;
+  Token *tok = gToken;
   ty = type_suffix(ty);
   if (ty->is_incomplete)
     error_tok(tok, "incomplete element type");
@@ -530,17 +530,17 @@ static Type *struct_decl(void) {
 // to allow a trailing comma. This function returns true if it looks
 // like we are at the end of such list.
 static bool consume_end(void) {
-  Token *tok = token;
+  Token *tok = gToken;
   if (consume("}") || (consume(",") && consume("}")))
     return true;
-  token = tok;
+  gToken = tok;
   return false;
 }
 
 static bool peek_end(void) {
-  Token *tok = token;
+  Token *tok = gToken;
   bool ret = consume("}") || (consume(",") && consume("}"));
-  token = tok;
+  gToken = tok;
   return ret;
 }
 
@@ -595,7 +595,7 @@ static Type *enum_specifier(void) {
 // struct-member = basetype declarator type-suffix ";"
 static Member *struct_member(void) {
   Type *ty = basetype(NULL);
-  Token *tok = token;
+  Token *tok = gToken;
   char *name = NULL;
   ty = declarator(ty, &name);
   ty = type_suffix(ty);
@@ -628,10 +628,10 @@ static void read_func_params(Function *fn) {
   if (consume(")"))
     return;
 
-  Token *tok = token;
+  Token *tok = gToken;
   if (consume("void") && consume(")"))
     return;
-  token = tok;
+  gToken = tok;
 
   fn->params = read_func_param();
   VarList *cur = fn->params;
@@ -745,7 +745,7 @@ static void skip_excess_elements2(void) {
 
 static void skip_excess_elements(void) {
   expect(",");
-  warn_tok(token, "excess elements in initializer");
+  warn_tok(gToken, "excess elements in initializer");
   skip_excess_elements2();
 }
 
@@ -775,11 +775,11 @@ static void skip_excess_elements(void) {
 // the linker supports an expression consisting of a label address
 // plus/minus an addend, so (2) is allowed.
 static Initializer *gvar_initializer2(Initializer *cur, Type *ty) {
-  Token *tok = token;
+  Token *tok = gToken;
 
   if (ty->kind == TY_ARRAY && ty->base->kind == TY_CHAR &&
-      token->kind == TK_STR) {
-    token = token->next;
+      gToken->kind == TK_STR) {
+    gToken = gToken->next;
 
     if (ty->is_incomplete) {
       ty->size = tok->cont_len;
@@ -872,7 +872,7 @@ static void global_var(void) {
     return;
 
   char *name = NULL;
-  Token *tok = token;
+  Token *tok = gToken;
   ty = declarator(ty, &name);
   ty = type_suffix(ty);
 
@@ -941,7 +941,7 @@ static Node *lvar_init_zero(Node *cur, Var *var, Type *ty, Designator *desg) {
     return cur;
   }
 
-  cur->next = new_desg_node(var, desg, new_num(0, token));
+  cur->next = new_desg_node(var, desg, new_num(0, gToken));
   return cur->next;
 }
 
@@ -977,10 +977,10 @@ static Node *lvar_init_zero(Node *cur, Var *var, Type *ty, Designator *desg) {
 //   type `int[3]` because the rhs initializer has three items.
 static Node *lvar_initializer2(Node *cur, Var *var, Type *ty, Designator *desg) {
   if (ty->kind == TY_ARRAY && ty->base->kind == TY_CHAR &&
-      token->kind == TK_STR) {
+      gToken->kind == TK_STR) {
     // Initialize a char array with a string literal.
-    Token *tok = token;
-    token = token->next;
+    Token *tok = gToken;
+    gToken = gToken->next;
 
     if (ty->is_incomplete) {
       ty->size = tok->cont_len;
@@ -1076,13 +1076,13 @@ static Node *lvar_initializer(Var *var, Token *tok) {
 // declaration = basetype declarator type-suffix ("=" lvar-initializer)? ";"
 //             | basetype ";"
 static Node *declaration(void) {
-  Token *tok = token;
+  Token *tok = gToken;
   StorageClass sclass;
   Type *ty = basetype(&sclass);
   if (tok = consume(";"))
     return new_node(ND_NULL, tok);
 
-  tok = token;
+  tok = gToken;
   char *name = NULL;
   ty = declarator(ty, &name);
   ty = type_suffix(ty);
@@ -1124,7 +1124,7 @@ static Node *declaration(void) {
 }
 
 static Node *read_expr_stmt(void) {
-  Token *tok = token;
+  Token *tok = gToken;
   return new_unary(ND_EXPR_STMT, expr(), tok);
 }
 
@@ -1133,7 +1133,7 @@ static bool is_typename(void) {
   return peek("void") || peek("_Bool") || peek("char") || peek("short") ||
          peek("int") || peek("long") || peek("enum") || peek("struct") ||
          peek("typedef") || peek("static") || peek("extern") ||
-         peek("signed") || find_typedef(token);
+         peek("signed") || find_typedef(gToken);
 }
 
 static Node *stmt(void) {
@@ -1305,7 +1305,7 @@ static Node *stmt2(void) {
       node->label_name = strndup(tok->str, tok->len);
       return node;
     }
-    token = tok;
+    gToken = tok;
   }
 
   if (is_typename())
@@ -1621,7 +1621,7 @@ static Node *mul(void) {
 
 // cast = "(" type-name ")" cast | unary
 static Node *cast(void) {
-  Token *tok = token;
+  Token *tok = gToken;
 
   if (consume("(")) {
     if (is_typename()) {
@@ -1634,7 +1634,7 @@ static Node *cast(void) {
         return node;
       }
     }
-    token = tok;
+    gToken = tok;
   }
 
   return unary();
@@ -1676,7 +1676,7 @@ static Node *struct_ref(Node *lhs) {
   if (lhs->ty->kind != TY_STRUCT)
     error_tok(lhs->tok, "not a struct");
 
-  Token *tok = token;
+  Token *tok = gToken;
   Member *mem = find_member(lhs->ty, expect_ident());
   if (!mem)
     error_tok(tok, "no such member");
@@ -1734,9 +1734,9 @@ static Node *postfix(void) {
 
 // compound-literal = "(" type-name ")" "{" (gvar-initializer | lvar-initializer) "}"
 static Node *compound_literal(void) {
-  Token *tok = token;
+  Token *tok = gToken;
   if (!consume("(") || !is_typename()) {
-    token = tok;
+    gToken = tok;
     return NULL;
   }
 
@@ -1744,7 +1744,7 @@ static Node *compound_literal(void) {
   expect(")");
 
   if (!peek("{")) {
-    token = tok;
+    gToken = tok;
     return NULL;
   }
 
@@ -1826,7 +1826,7 @@ static Node *primary(void) {
         expect(")");
         return new_num(ty->size, tok);
       }
-      token = tok->next;
+      gToken = tok->next;
     }
 
     Node *node = unary();
@@ -1876,9 +1876,9 @@ static Node *primary(void) {
     error_tok(tok, "undefined variable");
   }
 
-  tok = token;
+  tok = gToken;
   if (tok->kind == TK_STR) {
-    token = token->next;
+    gToken = gToken->next;
 
     Type *ty = array_of(char_type, tok->cont_len);
     Var *var = new_gvar(new_label(), ty, true, true);
@@ -1888,7 +1888,7 @@ static Node *primary(void) {
 
   if (tok->kind != TK_NUM)
     error_tok(tok, "expected expression");
-  token = tok->next;
+  gToken = tok->next;
 
   Node *node = new_num(tok->val, tok);
   node->ty = tok->ty;

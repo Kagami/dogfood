@@ -25,9 +25,9 @@ int main(int argc, char **argv) {
     error("%s: invalid number of arguments", argv[0]);
 
   // Tokenize and parse.
-  filename = argv[1];
-  user_input = read_file(argv[1]);
-  token = tokenize();
+  char *filename = argv[1];
+  char *user_input = read_file(argv[1]);
+  tokenize(filename, user_input);
   Program *prog = program();
 
   // Assign offsets to local variables.
