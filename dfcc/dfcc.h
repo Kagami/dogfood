@@ -259,12 +259,12 @@ struct Member {
   int offset;
 };
 
-extern Type *void_type;
-extern Type *bool_type;
-extern Type *char_type;
-extern Type *short_type;
-extern Type *int_type;
-extern Type *long_type;
+extern Type *gVoidType;
+extern Type *gBoolType;
+extern Type *gCharType;
+extern Type *gShortType;
+extern Type *gIntType;
+extern Type *gLongType;
 
 bool is_integer(Type *ty);
 int align_to(int n, int align);

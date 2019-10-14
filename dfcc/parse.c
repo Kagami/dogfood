@@ -99,7 +99,7 @@ static Node *new_unary(NodeKind kind, Node *expr, Token *tok) {
 static Node *new_num(long val, Token *tok) {
   Node *node = new_node(ND_NUM, tok);
   node->val = val;
-  node->ty = int_type;
+  node->ty = gIntType;
   return node;
 }
 
@@ -277,7 +277,7 @@ static Type *basetype(StorageClass *sclass) {
     SIGNED = 1 << 13,
   };
 
-  Type *ty = int_type;
+  Type *ty = gIntType;
   int counter = 0;
 
   if (sclass)
@@ -342,25 +342,25 @@ static Type *basetype(StorageClass *sclass) {
 
     switch (counter) {
     case VOID:
-      ty = void_type;
+      ty = gVoidType;
       break;
     case BOOL:
-      ty = bool_type;
+      ty = gBoolType;
       break;
     case CHAR:
     case SIGNED + CHAR:
-      ty = char_type;
+      ty = gCharType;
       break;
     case SHORT:
     case SHORT + INT:
     case SIGNED + SHORT:
     case SIGNED + SHORT + INT:
-      ty = short_type;
+      ty = gShortType;
       break;
     case INT:
     case SIGNED:
     case SIGNED + INT:
-      ty = int_type;
+      ty = gIntType;
       break;
     case LONG:
     case LONG + INT:
@@ -370,7 +370,7 @@ static Type *basetype(StorageClass *sclass) {
     case SIGNED + LONG + INT:
     case SIGNED + LONG + LONG:
     case SIGNED + LONG + LONG + INT:
-      ty = long_type;
+      ty = gLongType;
       break;
     default:
       error_tok(tok, "invalid type");
@@ -1862,10 +1862,10 @@ static Node *primary(void) {
           error_tok(tok, "not a function");
         node->ty = sc->var->ty->return_ty;
       } else if (!strcmp(node->funcname, "__builtin_va_start")) {
-        node->ty = void_type;
+        node->ty = gVoidType;
       } else {
         warn_tok(node->tok, "implicit declaration of a function");
-        node->ty = int_type;
+        node->ty = gIntType;
       }
       return node;
     }
@@ -1885,7 +1885,7 @@ static Node *primary(void) {
   if (tok->kind == TK_STR) {
     gToken = gToken->next;
 
-    Type *ty = array_of(char_type, tok->cont_len);
+    Type *ty = array_of(gCharType, tok->cont_len);
     Var *var = new_gvar(new_label(), ty, true, true);
     var->initializer = gvar_init_string(tok->contents, tok->cont_len);
     return new_var_node(var, tok);

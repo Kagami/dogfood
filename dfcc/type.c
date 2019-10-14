@@ -1,11 +1,11 @@
 #include "dfcc.h"
 
-Type *void_type  = &(Type){ TY_VOID, 1, 1 };
-Type *bool_type  = &(Type){ TY_BOOL, 1, 1 };
-Type *char_type  = &(Type){ TY_CHAR, 1, 1 };
-Type *short_type = &(Type){ TY_SHORT, 2, 2 };
-Type *int_type   = &(Type){ TY_INT, 4, 4 };
-Type *long_type  = &(Type){ TY_LONG, 8, 8 };
+Type *gVoidType  = &(Type){ TY_VOID, 1, 1 };
+Type *gBoolType  = &(Type){ TY_BOOL, 1, 1 };
+Type *gCharType  = &(Type){ TY_CHAR, 1, 1 };
+Type *gShortType = &(Type){ TY_SHORT, 2, 2 };
+Type *gIntType   = &(Type){ TY_INT, 4, 4 };
+Type *gLongType  = &(Type){ TY_LONG, 8, 8 };
 
 bool is_integer(Type *ty) {
   TypeKind k = ty->kind;
@@ -87,7 +87,7 @@ void add_type(Node *node) {
   case ND_NOT:
   case ND_LOGOR:
   case ND_LOGAND:
-    node->ty = long_type;
+    node->ty = gLongType;
     return;
   case ND_PTR_ADD:
   case ND_PTR_SUB:
