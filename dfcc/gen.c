@@ -37,6 +37,8 @@ static void gen_addr(Node *node) {
     printf("  add rax, %d\n", node->member->offset);
     printf("  push rax\n");
     return;
+  default:
+    ;/* skip */
   }
 
   error_tok(node->tok, "not an lvalue");
@@ -199,6 +201,8 @@ static void gen_binary(Node *node) {
     printf("  setle al\n");
     printf("  movzb rax, al\n");
     break;
+  default:
+    ;/* skip */
   }
 
   printf("  push rax\n");
@@ -553,6 +557,8 @@ static void gen(Node *node) {
     gen(node->lhs);
     truncate(node->ty);
     return;
+  default:
+    ;/* skip */
   }
 
   gen(node->lhs);

@@ -1079,7 +1079,7 @@ static Node *declaration(void) {
   Token *tok = gToken;
   StorageClass sclass;
   Type *ty = basetype(&sclass);
-  if (tok = consume(";"))
+  if ((tok = consume(";")))
     return new_node(ND_NULL, tok);
 
   tok = gToken;
@@ -1160,7 +1160,7 @@ static Node *stmt(void) {
 //       | expr ";"
 static Node *stmt2(void) {
   Token *tok;
-  if (tok = consume("return")) {
+  if ((tok = consume("return"))) {
     if (consume(";"))
       return new_node(ND_RETURN, tok);
 
@@ -1169,7 +1169,7 @@ static Node *stmt2(void) {
     return node;
   }
 
-  if (tok = consume("if")) {
+  if ((tok = consume("if"))) {
     Node *node = new_node(ND_IF, tok);
     expect("(");
     node->cond = expr();
@@ -1180,7 +1180,7 @@ static Node *stmt2(void) {
     return node;
   }
 
-  if (tok = consume("switch")) {
+  if ((tok = consume("switch"))) {
     Node *node = new_node(ND_SWITCH, tok);
     expect("(");
     node->cond = expr();
@@ -1193,7 +1193,7 @@ static Node *stmt2(void) {
     return node;
   }
 
-  if (tok = consume("case")) {
+  if ((tok = consume("case"))) {
     if (!current_switch)
       error_tok(tok, "stray case");
     int val = const_expr();
@@ -1206,7 +1206,7 @@ static Node *stmt2(void) {
     return node;
   }
 
-  if (tok = consume("default")) {
+  if ((tok = consume("default"))) {
     if (!current_switch)
       error_tok(tok, "stray default");
     expect(":");
@@ -1216,7 +1216,7 @@ static Node *stmt2(void) {
     return node;
   }
 
-  if (tok = consume("while")) {
+  if ((tok = consume("while"))) {
     Node *node = new_node(ND_WHILE, tok);
     expect("(");
     node->cond = expr();
@@ -1225,7 +1225,7 @@ static Node *stmt2(void) {
     return node;
   }
 
-  if (tok = consume("for")) {
+  if ((tok = consume("for"))) {
     Node *node = new_node(ND_FOR, tok);
     expect("(");
     Scope *sc = enter_scope();
@@ -1252,7 +1252,7 @@ static Node *stmt2(void) {
     return node;
   }
 
-  if (tok = consume("do")) {
+  if ((tok = consume("do"))) {
     Node *node = new_node(ND_DO, tok);
     node->then = stmt();
     expect("while");
@@ -1263,7 +1263,7 @@ static Node *stmt2(void) {
     return node;
   }
 
-  if (tok = consume("{")) {
+  if ((tok = consume("{"))) {
     Node head = {};
     Node *cur = &head;
 
@@ -1279,27 +1279,27 @@ static Node *stmt2(void) {
     return node;
   }
 
-  if (tok = consume("break")) {
+  if ((tok = consume("break"))) {
     expect(";");
     return new_node(ND_BREAK, tok);
   }
 
-  if (tok = consume("continue")) {
+  if ((tok = consume("continue"))) {
     expect(";");
     return new_node(ND_CONTINUE, tok);
   }
 
-  if (tok = consume("goto")) {
+  if ((tok = consume("goto"))) {
     Node *node = new_node(ND_GOTO, tok);
     node->label_name = expect_ident();
     expect(";");
     return node;
   }
 
-  if (tok = consume(";"))
+  if ((tok = consume(";")))
     return new_node(ND_NULL, tok);
 
-  if (tok = consume_ident()) {
+  if ((tok = consume_ident())) {
     if (consume(":")) {
       Node *node = new_unary(ND_LABEL, stmt(), tok);
       node->label_name = strndup(tok->str, tok->len);
@@ -1320,7 +1320,7 @@ static Node *stmt2(void) {
 static Node *expr(void) {
   Node *node = assign();
   Token *tok;
-  while (tok = consume(",")) {
+  while ((tok = consume(","))) {
     node = new_unary(ND_EXPR_STMT, node, node->tok);
     node = new_binary(ND_COMMA, node, assign(), tok);
   }
@@ -1395,9 +1395,12 @@ static long eval2(Node *node, Var **var) {
       error_tok(node->tok, "invalid initializer");
     *var = node->var;
     return 0;
+  default:
+    ;/* skip */
   }
 
   error_tok(node->tok, "not a constant expression");
+  return 0;
 }
 
 static long const_expr(void) {
@@ -1411,31 +1414,31 @@ static Node *assign(void) {
   Node *node = conditional();
   Token *tok;
 
-  if (tok = consume("="))
+  if ((tok = consume("=")))
     return new_binary(ND_ASSIGN, node, assign(), tok);
 
-  if (tok = consume("*="))
+  if ((tok = consume("*=")))
     return new_binary(ND_MUL_EQ, node, assign(), tok);
 
-  if (tok = consume("/="))
+  if ((tok = consume("/=")))
     return new_binary(ND_DIV_EQ, node, assign(), tok);
 
-  if (tok = consume("<<="))
+  if ((tok = consume("<<=")))
     return new_binary(ND_SHL_EQ, node, assign(), tok);
 
-  if (tok = consume(">>="))
+  if ((tok = consume(">>=")))
     return new_binary(ND_SHR_EQ, node, assign(), tok);
 
-  if (tok = consume("&="))
+  if ((tok = consume("&=")))
     return new_binary(ND_BITAND_EQ, node, assign(), tok);
 
-  if (tok = consume("|="))
+  if ((tok = consume("|=")))
     return new_binary(ND_BITOR_EQ, node, assign(), tok);
 
-  if (tok = consume("^="))
+  if ((tok = consume("^=")))
     return new_binary(ND_BITXOR_EQ, node, assign(), tok);
 
-  if (tok = consume("+=")) {
+  if ((tok = consume("+="))) {
     add_type(node);
     if (node->ty->base)
       return new_binary(ND_PTR_ADD_EQ, node, assign(), tok);
@@ -1443,7 +1446,7 @@ static Node *assign(void) {
       return new_binary(ND_ADD_EQ, node, assign(), tok);
   }
 
-  if (tok = consume("-=")) {
+  if ((tok = consume("-="))) {
     add_type(node);
     if (node->ty->base)
       return new_binary(ND_PTR_SUB_EQ, node, assign(), tok);
@@ -1473,7 +1476,7 @@ static Node *conditional(void) {
 static Node *logor(void) {
   Node *node = logand();
   Token *tok;
-  while (tok = consume("||"))
+  while ((tok = consume("||")))
     node = new_binary(ND_LOGOR, node, logand(), tok);
   return node;
 }
@@ -1482,7 +1485,7 @@ static Node *logor(void) {
 static Node *logand(void) {
   Node *node = bitor();
   Token *tok;
-  while (tok = consume("&&"))
+  while ((tok = consume("&&")))
     node = new_binary(ND_LOGAND, node, bitor(), tok);
   return node;
 }
@@ -1491,7 +1494,7 @@ static Node *logand(void) {
 static Node *bitor(void) {
   Node *node = bitxor();
   Token *tok;
-  while (tok = consume("|"))
+  while ((tok = consume("|")))
     node = new_binary(ND_BITOR, node, bitxor(), tok);
   return node;
 }
@@ -1500,7 +1503,7 @@ static Node *bitor(void) {
 static Node *bitxor(void) {
   Node *node = bitand();
   Token *tok;
-  while (tok = consume("^"))
+  while ((tok = consume("^")))
     node = new_binary(ND_BITXOR, node, bitxor(), tok);
   return node;
 }
@@ -1509,7 +1512,7 @@ static Node *bitxor(void) {
 static Node *bitand(void) {
   Node *node = equality();
   Token *tok;
-  while (tok = consume("&"))
+  while ((tok = consume("&")))
     node = new_binary(ND_BITAND, node, equality(), tok);
   return node;
 }
@@ -1520,9 +1523,9 @@ static Node *equality(void) {
   Token *tok;
 
   for (;;) {
-    if (tok = consume("=="))
+    if ((tok = consume("==")))
       node = new_binary(ND_EQ, node, relational(), tok);
-    else if (tok = consume("!="))
+    else if ((tok = consume("!=")))
       node = new_binary(ND_NE, node, relational(), tok);
     else
       return node;
@@ -1535,13 +1538,13 @@ static Node *relational(void) {
   Token *tok;
 
   for (;;) {
-    if (tok = consume("<"))
+    if ((tok = consume("<")))
       node = new_binary(ND_LT, node, shift(), tok);
-    else if (tok = consume("<="))
+    else if ((tok = consume("<=")))
       node = new_binary(ND_LE, node, shift(), tok);
-    else if (tok = consume(">"))
+    else if ((tok = consume(">")))
       node = new_binary(ND_LT, shift(), node, tok);
-    else if (tok = consume(">="))
+    else if ((tok = consume(">=")))
       node = new_binary(ND_LE, shift(), node, tok);
     else
       return node;
@@ -1554,9 +1557,9 @@ static Node *shift(void) {
   Token *tok;
 
   for (;;) {
-    if (tok = consume("<<"))
+    if ((tok = consume("<<")))
       node = new_binary(ND_SHL, node, add(), tok);
-    else if (tok = consume(">>"))
+    else if ((tok = consume(">>")))
       node = new_binary(ND_SHR, node, add(), tok);
     else
       return node;
@@ -1574,6 +1577,7 @@ static Node *new_add(Node *lhs, Node *rhs, Token *tok) {
   if (is_integer(lhs->ty) && rhs->ty->base)
     return new_binary(ND_PTR_ADD, rhs, lhs, tok);
   error_tok(tok, "invalid operands");
+  return NULL;
 }
 
 static Node *new_sub(Node *lhs, Node *rhs, Token *tok) {
@@ -1587,6 +1591,7 @@ static Node *new_sub(Node *lhs, Node *rhs, Token *tok) {
   if (lhs->ty->base && rhs->ty->base)
     return new_binary(ND_PTR_DIFF, lhs, rhs, tok);
   error_tok(tok, "invalid operands");
+  return NULL;
 }
 
 // add = mul ("+" mul | "-" mul)*
@@ -1595,9 +1600,9 @@ static Node *add(void) {
   Token *tok;
 
   for (;;) {
-    if (tok = consume("+"))
+    if ((tok = consume("+")))
       node = new_add(node, mul(), tok);
-    else if (tok = consume("-"))
+    else if ((tok = consume("-")))
       node = new_sub(node, mul(), tok);
     else
       return node;
@@ -1610,9 +1615,9 @@ static Node *mul(void) {
   Token *tok;
 
   for (;;) {
-    if (tok = consume("*"))
+    if ((tok = consume("*")))
       node = new_binary(ND_MUL, node, cast(), tok);
-    else if (tok = consume("/"))
+    else if ((tok = consume("/")))
       node = new_binary(ND_DIV, node, cast(), tok);
     else
       return node;
@@ -1647,19 +1652,19 @@ static Node *unary(void) {
   Token *tok;
   if (consume("+"))
     return cast();
-  if (tok = consume("-"))
+  if ((tok = consume("-")))
     return new_binary(ND_SUB, new_num(0, tok), cast(), tok);
-  if (tok = consume("&"))
+  if ((tok = consume("&")))
     return new_unary(ND_ADDR, cast(), tok);
-  if (tok = consume("*"))
+  if ((tok = consume("*")))
     return new_unary(ND_DEREF, cast(), tok);
-  if (tok = consume("!"))
+  if ((tok = consume("!")))
     return new_unary(ND_NOT, cast(), tok);
-  if (tok = consume("~"))
+  if ((tok = consume("~")))
     return new_unary(ND_BITNOT, cast(), tok);
-  if (tok = consume("++"))
+  if ((tok = consume("++")))
     return new_unary(ND_PRE_INC, unary(), tok);
-  if (tok = consume("--"))
+  if ((tok = consume("--")))
     return new_unary(ND_PRE_DEC, unary(), tok);
   return postfix();
 }
@@ -1698,7 +1703,7 @@ static Node *postfix(void) {
   node = primary();
 
   for (;;) {
-    if (tok = consume("[")) {
+    if ((tok = consume("["))) {
       // x[y] is short for *(x+y)
       Node *exp = new_add(node, expr(), tok);
       expect("]");
@@ -1706,24 +1711,24 @@ static Node *postfix(void) {
       continue;
     }
 
-    if (tok = consume(".")) {
+    if ((tok = consume("."))) {
       node = struct_ref(node);
       continue;
     }
 
-    if (tok = consume("->")) {
+    if ((tok = consume("->"))) {
       // x->y is short for (*x).y
       node = new_unary(ND_DEREF, node, tok);
       node = struct_ref(node);
       continue;
     }
 
-    if (tok = consume("++")) {
+    if ((tok = consume("++"))) {
       node = new_unary(ND_POST_INC, node, tok);
       continue;
     }
 
-    if (tok = consume("--")) {
+    if ((tok = consume("--"))) {
       node = new_unary(ND_POST_DEC, node, tok);
       continue;
     }
@@ -1808,7 +1813,7 @@ static Node *func_args(void) {
 static Node *primary(void) {
   Token *tok;
 
-  if (tok = consume("(")) {
+  if ((tok = consume("("))) {
     if (consume("{"))
       return stmt_expr(tok);
 
@@ -1817,7 +1822,7 @@ static Node *primary(void) {
     return node;
   }
 
-  if (tok = consume("sizeof")) {
+  if ((tok = consume("sizeof"))) {
     if (consume("(")) {
       if (is_typename()) {
         Type *ty = type_name();
@@ -1836,14 +1841,14 @@ static Node *primary(void) {
     return new_num(node->ty->size, tok);
   }
 
-  if (tok = consume("_Alignof")) {
+  if ((tok = consume("_Alignof"))) {
     expect("(");
     Type *ty = type_name();
     expect(")");
     return new_num(ty->align, tok);
   }
 
-  if (tok = consume_ident()) {
+  if ((tok = consume_ident())) {
     // Function call
     if (consume("(")) {
       Node *node = new_node(ND_FUNCALL, tok);

@@ -1,15 +1,12 @@
-#define _GNU_SOURCE
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdarg.h>
 #include <stdbool.h>
-#include <stdio.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
+#include <stdio.h>
 
 typedef struct Type Type;
 typedef struct Member Member;

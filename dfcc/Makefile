@@ -1,4 +1,4 @@
-CFLAGS = -g
+CFLAGS = -Wall -g
 LDFLAGS = -no-pie
 SRCS = $(wildcard *.c)
 OBJS = $(addprefix .tmp/,$(SRCS:.c=.o))

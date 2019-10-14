@@ -149,5 +149,7 @@ void add_type(Node *node) {
     node->ty = last->ty;
     return;
   }
+  default:
+    ;/* skip */
   }
 }
