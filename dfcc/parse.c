@@ -28,49 +28,126 @@ typedef struct {
   TagScope *tag_scope;
 } Scope;
 
-// All local variable instances created during parsing are
-// accumulated to this list.
-static VarList *locals;
+typedef enum {
+  TYPEDEF = 1 << 0,
+  STATIC  = 1 << 1,
+  EXTERN  = 1 << 2,
+} StorageClass;
 
-// Likewise, global variables are accumulated to this list.
-static VarList *globals;
+typedef struct Designator Designator;
+struct Designator {
+  Designator *next;
+  int idx;     // array
+  Member *mem; // struct
+};
 
-// C has two block scopes; one is for variables/typedefs and
-// the other is for struct/union/enum tags.
-static VarScope *var_scope;
-static TagScope *tag_scope;
-static int scope_depth;
+typedef struct {
+  // All local variable instances created during parsing are
+  // accumulated to this list.
+  VarList *locals;
+  // Likewise, global variables are accumulated to this list.
+  VarList *globals;
+  // C has two block scopes; one is for variables/typedefs and
+  // the other is for struct/union/enum tags.
+  VarScope *var_scope;
+  TagScope *tag_scope;
+  int scope_depth;
+  // Points to a node representing a switch if we are parsing
+  // a switch statement. Otherwise, NULL.
+  Node *current_switch;
+} ParserContext;
 
-// Points to a node representing a switch if we are parsing
-// a switch statement. Otherwise, NULL.
-static Node *current_switch;
+static ParserContext *gCtx;
+
+static Function *function(void);
+static Type *basetype(StorageClass *sclass);
+static Type *declarator(Type *ty, char **name);
+static Type *abstract_declarator(Type *ty);
+static Type *type_suffix(Type *ty);
+static Type *type_name(void);
+static Type *struct_decl(void);
+static Type *enum_specifier(void);
+static Member *struct_member(void);
+static void global_var(void);
+static Node *declaration(void);
+static bool is_function(void);
+static bool is_typename(void);
+static Node *stmt(void);
+static Node *stmt2(void);
+static Node *expr(void);
+static long eval(Node *node);
+static long eval2(Node *node, Var **var);
+static long const_expr(void);
+static Node *assign(void);
+static Node *conditional(void);
+static Node *logor(void);
+static Node *logand(void);
+static Node *bitand(void);
+static Node *bitor(void);
+static Node *bitxor(void);
+static Node *equality(void);
+static Node *relational(void);
+static Node *shift(void);
+static Node *new_add(Node *lhs, Node *rhs, Token *tok);
+static Node *add(void);
+static Node *mul(void);
+static Node *cast(void);
+static Node *unary(void);
+static Node *postfix(void);
+static Node *compound_literal(void);
+static Node *primary(void);
+
+// program = (global-var | function)*
+Program *parse(void) {
+  gCtx = calloc(1, sizeof(ParserContext));
+  Function head = {};
+  Function *cur = &head;
+
+  while (!at_eof()) {
+    if (is_function()) {
+      Function *fn = function();
+      if (!fn)
+        continue;
+      cur->next = fn;
+      cur = cur->next;
+      continue;
+    }
+
+    global_var();
+  }
+
+  Program *prog = calloc(1, sizeof(Program));
+  prog->globals = gCtx->globals;
+  prog->fns = head.next;
+  return prog;
+}
 
 // Begin a block scope
 static Scope *enter_scope(void) {
   Scope *sc = calloc(1, sizeof(Scope));
-  sc->var_scope = var_scope;
-  sc->tag_scope = tag_scope;
-  scope_depth++;
+  sc->var_scope = gCtx->var_scope;
+  sc->tag_scope = gCtx->tag_scope;
+  gCtx->scope_depth++;
   return sc;
 }
 
 // End a block scope
 static void leave_scope(Scope *sc) {
-  var_scope = sc->var_scope;
-  tag_scope = sc->tag_scope;
-  scope_depth--;
+  gCtx->var_scope = sc->var_scope;
+  gCtx->tag_scope = sc->tag_scope;
+  gCtx->scope_depth--;
 }
 
 // Find a variable or a typedef by name.
 static VarScope *find_var(Token *tok) {
-  for (VarScope *sc = var_scope; sc; sc = sc->next)
+  for (VarScope *sc = gCtx->var_scope; sc; sc = sc->next)
     if (strlen(sc->name) == tok->len && !strncmp(tok->str, sc->name, tok->len))
       return sc;
   return NULL;
 }
 
 static TagScope *find_tag(Token *tok) {
-  for (TagScope *sc = tag_scope; sc; sc = sc->next)
+  for (TagScope *sc = gCtx->tag_scope; sc; sc = sc->next)
     if (strlen(sc->name) == tok->len && !strncmp(tok->str, sc->name, tok->len))
       return sc;
   return NULL;
@@ -112,9 +189,9 @@ static Node *new_var_node(Var *var, Token *tok) {
 static VarScope *push_scope(char *name) {
   VarScope *sc = calloc(1, sizeof(VarScope));
   sc->name = name;
-  sc->next = var_scope;
-  sc->depth = scope_depth;
-  var_scope = sc;
+  sc->next = gCtx->var_scope;
+  sc->depth = gCtx->scope_depth;
+  gCtx->var_scope = sc;
   return sc;
 }
 
@@ -132,8 +209,8 @@ static Var *new_lvar(char *name, Type *ty) {
 
   VarList *vl = calloc(1, sizeof(VarList));
   vl->var = var;
-  vl->next = locals;
-  locals = vl;
+  vl->next = gCtx->locals;
+  gCtx->locals = vl;
   return var;
 }
 
@@ -145,8 +222,8 @@ static Var *new_gvar(char *name, Type *ty, bool is_static, bool emit) {
   if (emit) {
     VarList *vl = calloc(1, sizeof(VarList));
     vl->var = var;
-    vl->next = globals;
-    globals = vl;
+    vl->next = gCtx->globals;
+    gCtx->globals = vl;
   }
   return var;
 }
@@ -165,93 +242,6 @@ static char *new_label(void) {
   char buf[20];
   sprintf(buf, ".L.data.%d", cnt++);
   return strndup(buf, 20);
-}
-
-typedef enum {
-  TYPEDEF = 1 << 0,
-  STATIC  = 1 << 1,
-  EXTERN  = 1 << 2,
-} StorageClass;
-
-static Function *function(void);
-static Type *basetype(StorageClass *sclass);
-static Type *declarator(Type *ty, char **name);
-static Type *abstract_declarator(Type *ty);
-static Type *type_suffix(Type *ty);
-static Type *type_name(void);
-static Type *struct_decl(void);
-static Type *enum_specifier(void);
-static Member *struct_member(void);
-static void global_var(void);
-static Node *declaration(void);
-static bool is_typename(void);
-static Node *stmt(void);
-static Node *stmt2(void);
-static Node *expr(void);
-static long eval(Node *node);
-static long eval2(Node *node, Var **var);
-static long const_expr(void);
-static Node *assign(void);
-static Node *conditional(void);
-static Node *logor(void);
-static Node *logand(void);
-static Node *bitand(void);
-static Node *bitor(void);
-static Node *bitxor(void);
-static Node *equality(void);
-static Node *relational(void);
-static Node *shift(void);
-static Node *new_add(Node *lhs, Node *rhs, Token *tok);
-static Node *add(void);
-static Node *mul(void);
-static Node *cast(void);
-static Node *unary(void);
-static Node *postfix(void);
-static Node *compound_literal(void);
-static Node *primary(void);
-
-// Determine whether the next top-level item is a function
-// or a global variable by looking ahead input tokens.
-static bool is_function(void) {
-  Token *tok = gToken;
-  bool isfunc = false;
-
-  StorageClass sclass;
-  Type *ty = basetype(&sclass);
-
-  if (!consume(";")) {
-    char *name = NULL;
-    declarator(ty, &name);
-    isfunc = name && consume("(");
-  }
-
-  gToken = tok;
-  return isfunc;
-}
-
-// program = (global-var | function)*
-Program *program(void) {
-  Function head = {};
-  Function *cur = &head;
-  globals = NULL;
-
-  while (!at_eof()) {
-    if (is_function()) {
-      Function *fn = function();
-      if (!fn)
-        continue;
-      cur->next = fn;
-      cur = cur->next;
-      continue;
-    }
-
-    global_var();
-  }
-
-  Program *prog = calloc(1, sizeof(Program));
-  prog->globals = globals;
-  prog->fns = head.next;
-  return prog;
 }
 
 // basetype = builtin-type | struct-decl | typedef-name | enum-specifier
@@ -444,11 +434,11 @@ static Type *type_name(void) {
 
 static void push_tag_scope(Token *tok, Type *ty) {
   TagScope *sc = calloc(1, sizeof(TagScope));
-  sc->next = tag_scope;
+  sc->next = gCtx->tag_scope;
   sc->name = strndup(tok->str, tok->len);
-  sc->depth = scope_depth;
+  sc->depth = gCtx->scope_depth;
   sc->ty = ty;
-  tag_scope = sc;
+  gCtx->tag_scope = sc;
 }
 
 // struct-decl = "struct" ident? ("{" struct-member "}")?
@@ -481,7 +471,7 @@ static Type *struct_decl(void) {
   if (tag)
     sc = find_tag(tag);
 
-  if (sc && sc->depth == scope_depth) {
+  if (sc && sc->depth == gCtx->scope_depth) {
     // If there's an existing struct type having the same tag name in
     // the same block scope, this is a redefinition.
     if (sc->ty->kind != TY_STRUCT)
@@ -654,7 +644,7 @@ static void read_func_params(Function *fn) {
 // params   = param ("," param)* | "void"
 // param    = basetype declarator type-suffix
 static Function *function(void) {
-  locals = NULL;
+  gCtx->locals = NULL;
 
   StorageClass sclass;
   Type *ty = basetype(&sclass);
@@ -689,7 +679,7 @@ static Function *function(void) {
   leave_scope(sc);
 
   fn->node = head.next;
-  fn->locals = locals;
+  fn->locals = gCtx->locals;
   return fn;
 }
 
@@ -899,13 +889,6 @@ static void global_var(void) {
     error_tok(tok, "incomplete type");
   expect(";");
 }
-
-typedef struct Designator Designator;
-struct Designator {
-  Designator *next;
-  int idx;     // array
-  Member *mem; // struct
-};
 
 // Creates a node for an array access. For example, if var represents
 // a variable x and desg represents indices 3 and 4, this function
@@ -1128,6 +1111,25 @@ static Node *read_expr_stmt(void) {
   return new_unary(ND_EXPR_STMT, expr(), tok);
 }
 
+// Determine whether the next top-level item is a function
+// or a global variable by looking ahead input tokens.
+static bool is_function(void) {
+  Token *tok = gToken;
+  bool isfunc = false;
+
+  StorageClass sclass;
+  Type *ty = basetype(&sclass);
+
+  if (!consume(";")) {
+    char *name = NULL;
+    declarator(ty, &name);
+    isfunc = name && consume("(");
+  }
+
+  gToken = tok;
+  return isfunc;
+}
+
 // Returns true if the next token represents a type.
 static bool is_typename(void) {
   return peek("void") || peek("_Bool") || peek("char") || peek("short") ||
@@ -1186,33 +1188,33 @@ static Node *stmt2(void) {
     node->cond = expr();
     expect(")");
 
-    Node *sw = current_switch;
-    current_switch = node;
+    Node *sw = gCtx->current_switch;
+    gCtx->current_switch = node;
     node->then = stmt();
-    current_switch = sw;
+    gCtx->current_switch = sw;
     return node;
   }
 
   if ((tok = consume("case"))) {
-    if (!current_switch)
+    if (!gCtx->current_switch)
       error_tok(tok, "stray case");
     int val = const_expr();
     expect(":");
 
     Node *node = new_unary(ND_CASE, stmt(), tok);
     node->val = val;
-    node->case_next = current_switch->case_next;
-    current_switch->case_next = node;
+    node->case_next = gCtx->current_switch->case_next;
+    gCtx->current_switch->case_next = node;
     return node;
   }
 
   if ((tok = consume("default"))) {
-    if (!current_switch)
+    if (!gCtx->current_switch)
       error_tok(tok, "stray default");
     expect(":");
 
     Node *node = new_unary(ND_CASE, stmt(), tok);
-    current_switch->default_case = node;
+    gCtx->current_switch->default_case = node;
     return node;
   }
 
@@ -1753,7 +1755,7 @@ static Node *compound_literal(void) {
     return NULL;
   }
 
-  if (scope_depth == 0) {
+  if (gCtx->scope_depth == 0) {
     Var *var = new_gvar(new_label(), ty, true, true);
     var->initializer = gvar_initializer(ty);
     return new_var_node(var, tok);

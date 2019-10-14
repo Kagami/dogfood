@@ -13,7 +13,7 @@ typedef struct Member Member;
 typedef struct Initializer Initializer;
 
 //
-// tokenize.c
+// lex.c
 //
 
 // Token
@@ -218,10 +218,10 @@ typedef struct {
   Function *fns;
 } Program;
 
-Program *program(void);
+Program *parse(void);
 
 //
-// typing.c
+// type.c
 //
 
 typedef enum {
@@ -276,7 +276,7 @@ Type *struct_type(void);
 void add_type(Node *node);
 
 //
-// codegen.c
+// gen.c
 //
 
 void codegen(Program *prog);

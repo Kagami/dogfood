@@ -28,7 +28,7 @@ int main(int argc, char **argv) {
   char *filename = argv[1];
   char *user_input = read_file(argv[1]);
   tokenize(filename, user_input);
-  Program *prog = program();
+  Program *prog = parse();
 
   // Assign offsets to local variables.
   for (Function *fn = prog->fns; fn; fn = fn->next) {
