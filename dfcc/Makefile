@@ -3,28 +3,27 @@ LDFLAGS = -no-pie
 SRCS = $(wildcard *.c)
 OBJS1 = $(addprefix .tmp1/,$(SRCS:.c=.o))
 OBJS2 = $(addprefix .tmp2/,$(SRCS:.c=.o))
+TSRCS = $(wildcard test/*.c)
+TESTS = $(addprefix .tmp2/,$(TSRCS:.c=))
 
 all: dfcc
 
 stage1: $(OBJS1)
 	$(CC) $(LDFLAGS) -o $@ $(OBJS1)
 
-stage2: stage1 $(OBJS2)
+stage2: $(OBJS2)
 	$(CC) $(LDFLAGS) -o $@ $(OBJS2)
 
 dfcc: stage2
 	cp $< $@
 
-test: stage2 test/test.c
-	./stage2 test/test.c > .tmp2/test.s
-	$(CC) $(LDFLAGS) -o .tmp2/test .tmp2/test.s
-	.tmp2/test
+test: $(TESTS)
 
 .tmp1/%.o: %.c dfcc.h
 	@mkdir -p .tmp1
 	$(CC) $(CFLAGS) -o $@ -c $<
 
-.tmp2/%.o: %.c dfcc.h
+.tmp2/%.o: %.c dfcc.h stage1
 	@mkdir -p .tmp2
 	cat ../libdfc/include/*.h dfcc.h $< \
 		| grep -v '^#' \
@@ -38,6 +37,22 @@ test: stage2 test/test.c
 		> .tmp2/$<
 	./stage1 .tmp2/$< > .tmp2/$<.s
 	$(CC) $(CFLAGS) -o $@ -c .tmp2/$<.s
+
+.tmp2/test/%: test/%.c stage2
+	@mkdir -p .tmp2/test
+	cat ../libdfc/include/*.h $< \
+		| grep -v '^#' \
+		| sed 's/\bbool\b/_Bool/g' \
+		| sed 's/\btrue\b/1/g' \
+		| sed 's/\bfalse\b/0/g' \
+		| sed 's/\bNULL\b/0/g' \
+		| sed 's/INT_MAX/2147483647/g' \
+		| sed 's/\berrno\b/*__errno_location()/g' \
+		| sed 's/\bva_start\b/__builtin_va_start/g' \
+		> .tmp2/$<
+	./stage2 .tmp2/$< > .tmp2/$<.s
+	$(CC) $(LDFLAGS) -o $@ .tmp2/$<.s
+	$@
 
 clean:
 	rm -rf stage1 stage2 dfcc .tmp1 .tmp2

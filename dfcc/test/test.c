@@ -4,11 +4,6 @@
  * This is a block comment.
  */
 
-int printf();
-int exit();
-int strcmp(char *p, char *q);
-int memcmp(char *p, char *q);
-
 int g1;
 int g2[4];
 
@@ -66,7 +61,7 @@ int;
 struct {char a; int b;};
 typedef struct {char a; int b;} Ty1;
 
-int assert_eq_eq(long expected, long actual, char *code) {
+int assert_eq(long expected, long actual, char *code) {
   if (expected != actual) {
     printf("%s => %ld expected but got %ld\n", code, expected, actual);
     exit(1);
@@ -134,31 +129,6 @@ int counter() {
 
 _Bool true_fn() { return 513; }
 _Bool false_fn() { return 512; }
-
-int add_all1(int x, ...) {
-  va_list ap;
-  va_start(ap, x);
-
-  for (;;) {
-    int y = va_arg(ap, int);
-    if (y == 0)
-      return x;
-    x += y;
-  }
-}
-
-int add_all3(int x, int y, int z, ...) {
-  va_list ap;
-  va_start(ap, z);
-  x = x + y + z;
-
-  for (;;) {
-    int y = va_arg(ap, int);
-    if (y == 0)
-      return x;
-    x += y;
-  }
-}
 
 int main() {
   assert_eq(8, ({ int a=3; int z=5; a+z; }), "int a=3; int z=5; a+z;");
@@ -722,12 +692,6 @@ int main() {
 
   assert_eq(1, true_fn(), "true_fn()");
   assert_eq(0, false_fn(), "false_fn()");
-
-  assert_eq(6, add_all1(1,2,3,0), "add_all1(1,2,3,0)");
-  assert_eq(5, add_all1(1,2,3,-1,0), "add_all1(1,2,3,-1,0)");
-
-  assert_eq(6, add_all3(1,2,3,0), "add_all3(1,2,3,0)");
-  assert_eq(5, add_all3(1,2,3,-1,0), "add_all3(1,2,3,-1,0)");
 
   assert_eq(1, sizeof(char), "sizeof(char)");
   assert_eq(1, sizeof(signed char), "sizeof(signed char)");
