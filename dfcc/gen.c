@@ -506,24 +506,31 @@ static void gen(Node *node) {
     gen(node->lhs);
     return;
   case ND_FUNCALL: {
-    if (!strcmp(node->funcname, "__builtin_va_start")) {
-      printf("  pop rax\n");
-      printf("  mov edi, dword ptr [rbp-8]\n");
-      printf("  mov dword ptr [rax], 0\n");
-      printf("  mov dword ptr [rax+4], 0\n");
-      printf("  mov qword ptr [rax+8], rdi\n");
-      printf("  mov qword ptr [rax+16], 0\n");
-      return;
-    }
-
+    // Gen function arguments
     int nargs = 0;
     for (Node *arg = node->args; arg; arg = arg->next) {
       gen(arg);
       nargs++;
     }
-
-    for (int i = nargs - 1; i >= 0; i--)
+    // Assign arguments to corresponding register
+    for (int i = nargs - 1; i >= 0; i--) {
       printf("  pop %s\n", argreg8[i]);
+    }
+
+    if (strcmp(node->funcname, "__builtin_va_start") == 0) {
+      // Get gp_offset
+      printf("  mov edx, dword ptr [rbp-8]\n");
+      // Get reg_save_area
+      printf("  lea rcx, [rbp-56]\n");
+      // Fill va_list
+      printf("  mov dword ptr [rdi], edx\n"); // gp_offset
+      printf("  mov dword ptr [rdi+4], 0\n"); // fp_offset
+      printf("  mov qword ptr [rdi+8], 0\n"); // overflow_arg_area
+      printf("  mov qword ptr [rdi+16], rcx\n"); // reg_save_area
+      // Adjust for ND_EXPR_STMT
+      printf("  sub rsp, 8\n");
+      return;
+    }
 
     // We need to align RSP to a 16 byte boundary before
     // calling a function because it is an ABI requirement.
@@ -634,17 +641,20 @@ static void emit_text(Program *prog) {
 
     // Save arg registers if function is variadic
     if (fn->has_varargs) {
+      // Num of regular parameters to calculate gp_offset
       int n = 0;
-      for (VarList *vl = fn->params; vl; vl = vl->next)
+      for (VarList *vl = fn->params; vl; vl = vl->next) {
         n++;
-
-      printf("mov dword ptr [rbp-8], %d\n", n * 8);
-      printf("mov [rbp-16], r9\n");
-      printf("mov [rbp-24], r8\n");
-      printf("mov [rbp-32], rcx\n");
-      printf("mov [rbp-40], rdx\n");
-      printf("mov [rbp-48], rsi\n");
-      printf("mov [rbp-56], rdi\n");
+      }
+      // Register save area
+      printf("  mov [rbp-56], rdi\n");
+      printf("  mov [rbp-48], rsi\n");
+      printf("  mov [rbp-40], rdx\n");
+      printf("  mov [rbp-32], rcx\n");
+      printf("  mov [rbp-24], r8\n");
+      printf("  mov [rbp-16], r9\n");
+      // gp_offset
+      printf("  mov dword ptr [rbp-8], %d\n", n * 8);
     }
 
     // Push arguments to the stack
