@@ -6,16 +6,13 @@ OBJS2 = $(addprefix .tmp2/,$(SRCS:.c=.o))
 TSRCS = $(wildcard test/*.c)
 TESTS = $(addprefix .tmp2/,$(TSRCS:.c=))
 
-all: dfcc
+all: stage2
 
 stage1: $(OBJS1)
 	$(CC) $(LDFLAGS) -o $@ $(OBJS1)
 
 stage2: $(OBJS2)
 	$(CC) $(LDFLAGS) -o $@ $(OBJS2)
-
-dfcc: stage2
-	cp $< $@
 
 test: $(TESTS)
 
