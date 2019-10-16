@@ -11,8 +11,19 @@
 #include <stdio.h>
 
 typedef struct Type Type;
+typedef struct Token Token;
 typedef struct Member Member;
 typedef struct Initializer Initializer;
+
+//
+// error.c
+//
+
+void error_init(char *filename, char *user_input);
+void error(char *fmt, ...);
+void error_at(char *loc, char *fmt, ...);
+void error_tok(Token *tok, char *fmt, ...);
+void warn_tok(Token *tok, char *fmt, ...);
 
 //
 // lex.c
@@ -28,7 +39,6 @@ typedef enum {
 } TokenKind;
 
 // Token type
-typedef struct Token Token;
 struct Token {
   TokenKind kind; // Token kind
   Token *next;    // Next token
@@ -41,18 +51,7 @@ struct Token {
   char cont_len;  // string literal length
 };
 
-void error(char *fmt, ...);
-void error_at(char *loc, char *fmt, ...);
-void error_tok(Token *tok, char *fmt, ...);
-void warn_tok(Token *tok, char *fmt, ...);
-Token *peek(char *s);
-Token *consume(char *op);
-Token *consume_ident(void);
-void expect(char *op);
-char *expect_ident(void);
-bool at_eof(void);
-void tokenize(char *filename, char *user_input);
-extern Token *gToken;
+Token *tokenize(char *user_input);
 
 //
 // parse.c
@@ -220,7 +219,7 @@ typedef struct {
   Function *fns;
 } Program;
 
-Program *parse(void);
+Program *parse(Token *token);
 
 //
 // type.c

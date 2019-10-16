@@ -11,7 +11,7 @@ static char *read_file(char *path) {
   char *buf = malloc(filemax);
   int size = fread(buf, 1, filemax - 2, fp);
   if (!feof(fp))
-    error("%s: file too large");
+    error("%s: file too large", path);
 
   // Make sure that the string ends with "\n\0".
   if (size == 0 || buf[size - 1] != '\n')
@@ -27,8 +27,9 @@ int main(int argc, char **argv) {
   // Tokenize and parse.
   char *filename = argv[1];
   char *user_input = read_file(argv[1]);
-  tokenize(filename, user_input);
-  Program *prog = parse();
+  error_init(filename, user_input);
+  Token *token = tokenize(user_input);
+  Program *prog = parse(token);
 
   // Assign offsets to local variables.
   for (Function *fn = prog->fns; fn; fn = fn->next) {
