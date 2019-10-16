@@ -35,7 +35,7 @@ test: $(TESTS)
 	./stage1 .tmp2/$< > .tmp2/$<.s
 	$(CC) $(CFLAGS) -o $@ -c .tmp2/$<.s
 
-.tmp2/test/%: test/%.c stage2
+.tmp2/test/%: test/%.c stage1
 	@mkdir -p .tmp2/test
 	cat ../libdfc/include/*.h $< \
 		| grep -v '^#' \
@@ -47,7 +47,7 @@ test: $(TESTS)
 		| sed 's/\berrno\b/*__errno_location()/g' \
 		| sed 's/\bva_start\b/__builtin_va_start/g' \
 		> .tmp2/$<
-	./stage2 .tmp2/$< > .tmp2/$<.s
+	./stage1 .tmp2/$< > .tmp2/$<.s
 	$(CC) $(LDFLAGS) -o $@ .tmp2/$<.s
 	$@
 
