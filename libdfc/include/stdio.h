@@ -1,4 +1,5 @@
 typedef struct FILE FILE;
+extern FILE *stdin;
 extern FILE *stdout;
 extern FILE *stderr;
 FILE *fopen(char *pathname, char *mode);
