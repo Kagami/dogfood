@@ -43,7 +43,7 @@ struct Designator {
 
 typedef struct {
   // Current token being parsed.
-  Token *token;
+  Token *tok;
   // All local variable instances created during parsing are
   // accumulated to this list.
   VarList *locals;
@@ -67,20 +67,20 @@ static ParserContext *gCtx;
 
 // Consumes the current token if it matches `op`.
 static Token *consume(char *op) {
-  if (gCtx->token->kind != TK_RESERVED || strlen(op) != gCtx->token->len ||
-      strncmp(gCtx->token->str, op, gCtx->token->len))
+  if (gCtx->tok->kind != TK_RESERVED || strlen(op) != gCtx->tok->len ||
+      strncmp(gCtx->tok->str, op, gCtx->tok->len))
     return NULL;
-  Token *t = gCtx->token;
-  gCtx->token = gCtx->token->next;
+  Token *t = gCtx->tok;
+  gCtx->tok = gCtx->tok->next;
   return t;
 }
 
 // Consumes the current token if it is an identifier.
 static Token *consume_ident(void) {
-  if (gCtx->token->kind != TK_IDENT)
+  if (gCtx->tok->kind != TK_IDENT)
     return NULL;
-  Token *t = gCtx->token;
-  gCtx->token = gCtx->token->next;
+  Token *t = gCtx->tok;
+  gCtx->tok = gCtx->tok->next;
   return t;
 }
 
@@ -88,41 +88,41 @@ static Token *consume_ident(void) {
 // to allow a trailing comma. This function returns true if it looks
 // like we are at the end of such list.
 static bool consume_end(void) {
-  Token *tok = gCtx->token;
+  Token *tok = gCtx->tok;
   if (consume("}") || (consume(",") && consume("}")))
     return true;
-  gCtx->token = tok;
+  gCtx->tok = tok;
   return false;
 }
 
 // Returns true if the current token matches a given string.
 static Token *peek(char *s) {
-  if (gCtx->token->kind != TK_RESERVED || strlen(s) != gCtx->token->len ||
-      strncmp(gCtx->token->str, s, gCtx->token->len))
+  if (gCtx->tok->kind != TK_RESERVED || strlen(s) != gCtx->tok->len ||
+      strncmp(gCtx->tok->str, s, gCtx->tok->len))
     return NULL;
-  return gCtx->token;
+  return gCtx->tok;
 }
 
 static bool peek_end(void) {
-  Token *tok = gCtx->token;
+  Token *tok = gCtx->tok;
   bool ret = consume("}") || (consume(",") && consume("}"));
-  gCtx->token = tok;
+  gCtx->tok = tok;
   return ret;
 }
 
 // Ensure that the current token is a given string
 static void expect(char *s) {
   if (!peek(s))
-    error_tok(gCtx->token, "expected \"%s\"", s);
-  gCtx->token = gCtx->token->next;
+    error_tok(gCtx->tok, "expected \"%s\"", s);
+  gCtx->tok = gCtx->tok->next;
 }
 
 // Ensure that the current token is TK_IDENT.
 static char *expect_ident(void) {
-  if (gCtx->token->kind != TK_IDENT)
-    error_tok(gCtx->token, "expected an identifier");
-  char *s = strndup(gCtx->token->str, gCtx->token->len);
-  gCtx->token = gCtx->token->next;
+  if (gCtx->tok->kind != TK_IDENT)
+    error_tok(gCtx->tok, "expected an identifier");
+  char *s = strndup(gCtx->tok->str, gCtx->tok->len);
+  gCtx->tok = gCtx->tok->next;
   return s;
 }
 
@@ -148,12 +148,12 @@ static void skip_excess_elements2(void) {
 
 static void skip_excess_elements(void) {
   expect(",");
-  warn_tok(gCtx->token, "excess elements in initializer");
+  warn_tok(gCtx->tok, "excess elements in initializer");
   skip_excess_elements2();
 }
 
 static bool at_eof(void) {
-  return gCtx->token->kind == TK_EOF;
+  return gCtx->tok->kind == TK_EOF;
 }
 
 //
@@ -320,7 +320,7 @@ static Node *lvar_init_zero(Node *cur, Var *var, Type *ty, Designator *desg) {
     return cur;
   }
 
-  cur->next = new_desg_node(var, desg, new_num(0, gCtx->token));
+  cur->next = new_desg_node(var, desg, new_num(0, gCtx->tok));
   return cur->next;
 }
 
@@ -412,7 +412,7 @@ static bool is_typename(void) {
   return peek("void") || peek("_Bool") || peek("char") || peek("short") ||
          peek("int") || peek("long") || peek("enum") || peek("struct") ||
          peek("typedef") || peek("static") || peek("extern") ||
-         peek("signed") || find_typedef(gCtx->token);
+         peek("signed") || find_typedef(gCtx->tok);
 }
 
 static Node *struct_ref(Node *lhs) {
@@ -420,7 +420,7 @@ static Node *struct_ref(Node *lhs) {
   if (lhs->ty->kind != TY_STRUCT)
     error_tok(lhs->tok, "not a struct");
 
-  Token *tok = gCtx->token;
+  Token *tok = gCtx->tok;
   Member *mem = find_member(lhs->ty, expect_ident());
   if (!mem)
     error_tok(tok, "no such member");
@@ -435,7 +435,7 @@ static long eval(Node *node);
 // Evaluate a given node as a constant expression.
 //
 // A constant expression is either just a number or ptr+n where ptr
-// is a pointer to a global variable and n is a postiive/negative
+// is a pointer to a global variable and n is a positive/negative
 // number. The latter form is accepted only as an initialization
 // expression for a global variable.
 static long eval2(Node *node, Var **var) {
@@ -554,7 +554,7 @@ static Node *func_args(void);
 // Determine whether the next top-level item is a function
 // or a global variable by looking ahead input tokens.
 static bool is_function(void) {
-  Token *tok = gCtx->token;
+  Token *tok = gCtx->tok;
   bool isfunc = false;
 
   StorageClass sclass;
@@ -566,7 +566,7 @@ static bool is_function(void) {
     isfunc = name && consume("(");
   }
 
-  gCtx->token = tok;
+  gCtx->tok = tok;
   return isfunc;
 }
 
@@ -590,10 +590,10 @@ static void read_func_params(Function *fn) {
   if (consume(")"))
     return;
 
-  Token *tok = gCtx->token;
+  Token *tok = gCtx->tok;
   if (consume("void") && consume(")"))
     return;
-  gCtx->token = tok;
+  gCtx->tok = tok;
 
   fn->params = read_func_param();
   VarList *cur = fn->params;
@@ -613,7 +613,7 @@ static void read_func_params(Function *fn) {
 }
 
 static Node *read_expr_stmt(void) {
-  Token *tok = gCtx->token;
+  Token *tok = gCtx->tok;
   return new_unary(ND_EXPR_STMT, expr(), tok);
 }
 
@@ -624,7 +624,7 @@ static Node *read_expr_stmt(void) {
 // program = (global-var | function)*
 Program *parse(Token *token) {
   gCtx = calloc(1, sizeof(ParserContext));
-  gCtx->token = token;
+  gCtx->tok = token;
 
   Function head = { 0 };
   Function *cur = &head;
@@ -656,7 +656,7 @@ static void global_var(void) {
     return;
 
   char *name = NULL;
-  Token *tok = gCtx->token;
+  Token *tok = gCtx->tok;
   ty = declarator(ty, &name);
   ty = type_suffix(ty);
 
@@ -716,11 +716,11 @@ static Initializer *gvar_initializer(Type *ty) {
 // the linker supports an expression consisting of a label address
 // plus/minus an addend, so (2) is allowed.
 static Initializer *gvar_initializer2(Initializer *cur, Type *ty) {
-  Token *tok = gCtx->token;
+  Token *tok = gCtx->tok;
 
   if (ty->kind == TY_ARRAY && ty->base->kind == TY_CHAR &&
-      gCtx->token->kind == TK_STR) {
-    gCtx->token = gCtx->token->next;
+      gCtx->tok->kind == TK_STR) {
+    gCtx->tok = gCtx->tok->next;
 
     if (ty->is_incomplete) {
       ty->size = tok->cont_len;
@@ -742,7 +742,7 @@ static Initializer *gvar_initializer2(Initializer *cur, Type *ty) {
     int limit = ty->is_incomplete ? INT_MAX : ty->array_len;
 
     if (peek("}")) {
-      warn_tok(gCtx->token, "empty initializer braces");
+      warn_tok(gCtx->tok, "empty initializer braces");
     } else {
       do {
         cur = gvar_initializer2(cur, ty->base);
@@ -769,7 +769,7 @@ static Initializer *gvar_initializer2(Initializer *cur, Type *ty) {
     Member *mem = ty->members;
 
     if (peek("}")) {
-      warn_tok(gCtx->token, "empty initializer braces");
+      warn_tok(gCtx->tok, "empty initializer braces");
     } else {
       do {
         cur = gvar_initializer2(cur, mem->ty);
@@ -856,7 +856,7 @@ static Function *function(void) {
 // "signed" can appear anywhere if type is short, int, long or long long.
 static Type *basetype(StorageClass *sclass) {
   if (!is_typename())
-    error_tok(gCtx->token, "typename expected");
+    error_tok(gCtx->tok, "typename expected");
 
   enum {
     VOID   = 1 << 0,
@@ -876,7 +876,7 @@ static Type *basetype(StorageClass *sclass) {
     *sclass = 0;
 
   while (is_typename()) {
-    Token *tok = gCtx->token;
+    Token *tok = gCtx->tok;
 
     // Handle storage class specifiers.
     if (peek("typedef") || peek("static") || peek("extern")) {
@@ -907,9 +907,9 @@ static Type *basetype(StorageClass *sclass) {
       } else if (peek("enum")) {
         ty = enum_specifier();
       } else {
-        ty = find_typedef(gCtx->token);
+        ty = find_typedef(gCtx->tok);
         assert(ty);
-        gCtx->token = gCtx->token->next;
+        gCtx->tok = gCtx->tok->next;
       }
 
       counter |= OTHER;
@@ -1120,7 +1120,7 @@ static Type *type_suffix(Type *ty) {
     expect("]");
   }
 
-  Token *tok = gCtx->token;
+  Token *tok = gCtx->tok;
   ty = type_suffix(ty);
   if (ty->is_incomplete)
     error_tok(tok, "incomplete element type");
@@ -1133,7 +1133,7 @@ static Type *type_suffix(Type *ty) {
 // struct-member = basetype declarator type-suffix ";"
 static Member *struct_member(void) {
   Type *ty = basetype(NULL);
-  Token *tok = gCtx->token;
+  Token *tok = gCtx->tok;
   char *name = NULL;
   ty = declarator(ty, &name);
   ty = type_suffix(ty);
@@ -1315,7 +1315,7 @@ static Node *stmt2(void) {
       node->label_name = strndup(tok->str, tok->len);
       return node;
     }
-    gCtx->token = tok;
+    gCtx->tok = tok;
   }
 
   if (is_typename())
@@ -1344,13 +1344,13 @@ static long const_expr(void) {
 // declaration = basetype declarator type-suffix ("=" lvar-initializer)? ";"
 //             | basetype ";"
 static Node *declaration(void) {
-  Token *tok = gCtx->token;
+  Token *tok = gCtx->tok;
   StorageClass sclass;
   Type *ty = basetype(&sclass);
   if ((tok = consume(";")))
     return new_node(ND_NULL, tok);
 
-  tok = gCtx->token;
+  tok = gCtx->tok;
   char *name = NULL;
   ty = declarator(ty, &name);
   ty = type_suffix(ty);
@@ -1432,10 +1432,10 @@ static Node *lvar_initializer(Var *var, Token *tok) {
 //   type `int[3]` because the rhs initializer has three items.
 static Node *lvar_initializer2(Node *cur, Var *var, Type *ty, Designator *desg) {
   if (ty->kind == TY_ARRAY && ty->base->kind == TY_CHAR &&
-      gCtx->token->kind == TK_STR) {
+      gCtx->tok->kind == TK_STR) {
     // Initialize a char array with a string literal.
-    Token *tok = gCtx->token;
-    gCtx->token = gCtx->token->next;
+    Token *tok = gCtx->tok;
+    gCtx->tok = gCtx->tok->next;
 
     if (ty->is_incomplete) {
       ty->size = tok->cont_len;
@@ -1466,7 +1466,7 @@ static Node *lvar_initializer2(Node *cur, Var *var, Type *ty, Designator *desg) 
     int limit = ty->is_incomplete ? INT_MAX : ty->array_len;
 
     if (peek("}")) {
-      warn_tok(gCtx->token, "empty initializer braces");
+      warn_tok(gCtx->tok, "empty initializer braces");
     } else {
       do {
         Designator desg2 = {desg, i++};
@@ -1496,7 +1496,7 @@ static Node *lvar_initializer2(Node *cur, Var *var, Type *ty, Designator *desg) 
     Member *mem = ty->members;
 
     if (peek("}")) {
-      warn_tok(gCtx->token, "empty initializer braces");
+      warn_tok(gCtx->tok, "empty initializer braces");
     } else {
       do {
         Designator desg2 = {desg, 0, mem};
@@ -1714,7 +1714,7 @@ static Node *mul(void) {
 
 // cast = "(" type-name ")" cast | unary
 static Node *cast(void) {
-  Token *tok = gCtx->token;
+  Token *tok = gCtx->tok;
 
   if (consume("(")) {
     if (is_typename()) {
@@ -1727,7 +1727,7 @@ static Node *cast(void) {
         return node;
       }
     }
-    gCtx->token = tok;
+    gCtx->tok = tok;
   }
 
   return unary();
@@ -1827,9 +1827,9 @@ static Node *postfix(void) {
 
 // compound-literal = "(" type-name ")" "{" (gvar-initializer | lvar-initializer) "}"
 static Node *compound_literal(void) {
-  Token *tok = gCtx->token;
+  Token *tok = gCtx->tok;
   if (!consume("(") || !is_typename()) {
-    gCtx->token = tok;
+    gCtx->tok = tok;
     return NULL;
   }
 
@@ -1837,7 +1837,7 @@ static Node *compound_literal(void) {
   expect(")");
 
   if (!peek("{")) {
-    gCtx->token = tok;
+    gCtx->tok = tok;
     return NULL;
   }
 
@@ -1882,7 +1882,7 @@ static Node *primary(void) {
         expect(")");
         return new_num(ty->size, tok);
       }
-      gCtx->token = tok->next;
+      gCtx->tok = tok->next;
     }
 
     Node *node = unary();
@@ -1932,9 +1932,9 @@ static Node *primary(void) {
     error_tok(tok, "undefined variable");
   }
 
-  tok = gCtx->token;
+  tok = gCtx->tok;
   if (tok->kind == TK_STR) {
-    gCtx->token = gCtx->token->next;
+    gCtx->tok = gCtx->tok->next;
 
     Type *ty = array_of(gCharType, tok->cont_len);
     Var *var = new_gvar(new_label(), ty, true, true);
@@ -1944,7 +1944,7 @@ static Node *primary(void) {
 
   if (tok->kind != TK_NUM)
     error_tok(tok, "expected expression");
-  gCtx->token = tok->next;
+  gCtx->tok = tok->next;
 
   Node *node = new_num(tok->val, tok);
   node->ty = tok->ty;

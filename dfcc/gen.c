@@ -1,14 +1,18 @@
 #include "dfcc.h"
 
-static char *argreg1[] = {"dil", "sil", "dl", "cl", "r8b", "r9b"};
-static char *argreg2[] = {"di", "si", "dx", "cx", "r8w", "r9w"};
-static char *argreg4[] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
-static char *argreg8[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
+static char *gArgreg1[] = {"dil", "sil", "dl", "cl", "r8b", "r9b"};
+static char *gArgreg2[] = {"di", "si", "dx", "cx", "r8w", "r9w"};
+static char *gArgreg4[] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
+static char *gArgreg8[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 
-static int labelseq = 1;
-static int brkseq;
-static int contseq;
-static char *funcname;
+typedef struct {
+  int labelseq;
+  int brkseq;
+  int contseq;
+  char *funcname;
+} GenContext;
+
+static GenContext *gCtx;
 
 static void gen(Node *node);
 
@@ -243,7 +247,7 @@ static void gen(Node *node) {
     store(node->ty);
     return;
   case ND_TERNARY: {
-    int seq = labelseq++;
+    int seq = gCtx->labelseq++;
     gen(node->cond);
     printf("  pop rax\n");
     printf("  cmp rax, 0\n");
@@ -330,7 +334,7 @@ static void gen(Node *node) {
     printf("  push rax\n");
     return;
   case ND_LOGAND: {
-    int seq = labelseq++;
+    int seq = gCtx->labelseq++;
     gen(node->lhs);
     printf("  pop rax\n");
     printf("  cmp rax, 0\n");
@@ -347,7 +351,7 @@ static void gen(Node *node) {
     return;
   }
   case ND_LOGOR: {
-    int seq = labelseq++;
+    int seq = gCtx->labelseq++;
     gen(node->lhs);
     printf("  pop rax\n");
     printf("  cmp rax, 0\n");
@@ -364,7 +368,7 @@ static void gen(Node *node) {
     return;
   }
   case ND_IF: {
-    int seq = labelseq++;
+    int seq = gCtx->labelseq++;
     if (node->els) {
       gen(node->cond);
       printf("  pop rax\n");
@@ -386,10 +390,10 @@ static void gen(Node *node) {
     return;
   }
   case ND_WHILE: {
-    int seq = labelseq++;
-    int brk = brkseq;
-    int cont = contseq;
-    brkseq = contseq = seq;
+    int seq = gCtx->labelseq++;
+    int brk = gCtx->brkseq;
+    int cont = gCtx->contseq;
+    gCtx->brkseq = gCtx->contseq = seq;
 
     printf(".L.continue.%d:\n", seq);
     gen(node->cond);
@@ -400,15 +404,15 @@ static void gen(Node *node) {
     printf("  jmp .L.continue.%d\n", seq);
     printf(".L.break.%d:\n", seq);
 
-    brkseq = brk;
-    contseq = cont;
+    gCtx->brkseq = brk;
+    gCtx->contseq = cont;
     return;
   }
   case ND_FOR: {
-    int seq = labelseq++;
-    int brk = brkseq;
-    int cont = contseq;
-    brkseq = contseq = seq;
+    int seq = gCtx->labelseq++;
+    int brk = gCtx->brkseq;
+    int cont = gCtx->contseq;
+    gCtx->brkseq = gCtx->contseq = seq;
 
     if (node->init)
       gen(node->init);
@@ -426,15 +430,15 @@ static void gen(Node *node) {
     printf("  jmp .L.begin.%d\n", seq);
     printf(".L.break.%d:\n", seq);
 
-    brkseq = brk;
-    contseq = cont;
+    gCtx->brkseq = brk;
+    gCtx->contseq = cont;
     return;
   }
   case ND_DO: {
-    int seq = labelseq++;
-    int brk = brkseq;
-    int cont = contseq;
-    brkseq = contseq = seq;
+    int seq = gCtx->labelseq++;
+    int brk = gCtx->brkseq;
+    int cont = gCtx->contseq;
+    gCtx->brkseq = gCtx->contseq = seq;
 
     printf(".L.begin.%d:\n", seq);
     gen(node->then);
@@ -445,28 +449,28 @@ static void gen(Node *node) {
     printf("  jne .L.begin.%d\n", seq);
     printf(".L.break.%d:\n", seq);
 
-    brkseq = brk;
-    contseq = cont;
+    gCtx->brkseq = brk;
+    gCtx->contseq = cont;
     return;
   }
   case ND_SWITCH: {
-    int seq = labelseq++;
-    int brk = brkseq;
-    brkseq = seq;
+    int seq = gCtx->labelseq++;
+    int brk = gCtx->brkseq;
+    gCtx->brkseq = seq;
     node->case_label = seq;
 
     gen(node->cond);
     printf("  pop rax\n");
 
     for (Node *n = node->case_next; n; n = n->case_next) {
-      n->case_label = labelseq++;
+      n->case_label = gCtx->labelseq++;
       n->case_end_label = seq;
       printf("  cmp rax, %ld\n", n->val);
       printf("  je .L.case.%d\n", n->case_label);
     }
 
     if (node->default_case) {
-      int i = labelseq++;
+      int i = gCtx->labelseq++;
       node->default_case->case_end_label = seq;
       node->default_case->case_label = i;
       printf("  jmp .L.case.%d\n", i);
@@ -476,7 +480,7 @@ static void gen(Node *node) {
     gen(node->then);
     printf(".L.break.%d:\n", seq);
 
-    brkseq = brk;
+    gCtx->brkseq = brk;
     return;
   }
   case ND_CASE:
@@ -489,20 +493,20 @@ static void gen(Node *node) {
       gen(n);
     return;
   case ND_BREAK:
-    if (brkseq == 0)
+    if (gCtx->brkseq == 0)
       error_tok(node->tok, "stray break");
-    printf("  jmp .L.break.%d\n", brkseq);
+    printf("  jmp .L.break.%d\n", gCtx->brkseq);
     return;
   case ND_CONTINUE:
-    if (contseq == 0)
+    if (gCtx->contseq == 0)
       error_tok(node->tok, "stray continue");
-    printf("  jmp .L.continue.%d\n", contseq);
+    printf("  jmp .L.continue.%d\n", gCtx->contseq);
     return;
   case ND_GOTO:
-    printf("  jmp .L.label.%s.%s\n", funcname, node->label_name);
+    printf("  jmp .L.label.%s.%s\n", gCtx->funcname, node->label_name);
     return;
   case ND_LABEL:
-    printf(".L.label.%s.%s:\n", funcname, node->label_name);
+    printf(".L.label.%s.%s:\n", gCtx->funcname, node->label_name);
     gen(node->lhs);
     return;
   case ND_FUNCALL: {
@@ -514,7 +518,7 @@ static void gen(Node *node) {
     }
     // Assign arguments to corresponding register
     for (int i = nargs - 1; i >= 0; i--) {
-      printf("  pop %s\n", argreg8[i]);
+      printf("  pop %s\n", gArgreg8[i]);
     }
 
     if (strcmp(node->funcname, "__builtin_va_start") == 0) {
@@ -535,7 +539,7 @@ static void gen(Node *node) {
     // We need to align RSP to a 16 byte boundary before
     // calling a function because it is an ABI requirement.
     // RAX is set to 0 for variadic function.
-    int seq = labelseq++;
+    int seq = gCtx->labelseq++;
     printf("  mov rax, rsp\n");
     printf("  and rax, 15\n");
     printf("  jnz .L.call.%d\n", seq);
@@ -558,7 +562,7 @@ static void gen(Node *node) {
       gen(node->lhs);
       printf("  pop rax\n");
     }
-    printf("  jmp .L.return.%s\n", funcname);
+    printf("  jmp .L.return.%s\n", gCtx->funcname);
     return;
   case ND_CAST:
     gen(node->lhs);
@@ -614,14 +618,14 @@ static void emit_data(Program *prog) {
 static void load_arg(Var *var, int idx) {
   int sz = var->ty->size;
   if (sz == 1) {
-    printf("  mov [rbp-%d], %s\n", var->offset, argreg1[idx]);
+    printf("  mov [rbp-%d], %s\n", var->offset, gArgreg1[idx]);
   } else if (sz == 2) {
-    printf("  mov [rbp-%d], %s\n", var->offset, argreg2[idx]);
+    printf("  mov [rbp-%d], %s\n", var->offset, gArgreg2[idx]);
   } else if (sz == 4) {
-    printf("  mov [rbp-%d], %s\n", var->offset, argreg4[idx]);
+    printf("  mov [rbp-%d], %s\n", var->offset, gArgreg4[idx]);
   } else {
     assert(sz == 8);
-    printf("  mov [rbp-%d], %s\n", var->offset, argreg8[idx]);
+    printf("  mov [rbp-%d], %s\n", var->offset, gArgreg8[idx]);
   }
 }
 
@@ -632,7 +636,7 @@ static void emit_text(Program *prog) {
     if (!fn->is_static)
       printf(".global %s\n", fn->name);
     printf("%s:\n", fn->name);
-    funcname = fn->name;
+    gCtx->funcname = fn->name;
 
     // Prologue
     printf("  push rbp\n");
@@ -667,7 +671,7 @@ static void emit_text(Program *prog) {
       gen(node);
 
     // Epilogue
-    printf(".L.return.%s:\n", funcname);
+    printf(".L.return.%s:\n", gCtx->funcname);
     printf("  mov rsp, rbp\n");
     printf("  pop rbp\n");
     printf("  ret\n");
@@ -675,6 +679,9 @@ static void emit_text(Program *prog) {
 }
 
 void codegen(Program *prog) {
+  gCtx = calloc(1, sizeof(GenContext));
+  gCtx->labelseq = 1;
+
   printf(".intel_syntax noprefix\n");
   emit_data(prog);
   emit_text(prog);

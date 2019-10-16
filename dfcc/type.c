@@ -7,6 +7,14 @@ Type *gShortType = &(Type){ TY_SHORT, 2, 2 };
 Type *gIntType   = &(Type){ TY_INT, 4, 4 };
 Type *gLongType  = &(Type){ TY_LONG, 8, 8 };
 
+static Type *new_type(TypeKind kind, int size, int align) {
+  Type *ty = calloc(1, sizeof(Type));
+  ty->kind = kind;
+  ty->size = size;
+  ty->align = align;
+  return ty;
+}
+
 bool is_integer(Type *ty) {
   TypeKind k = ty->kind;
   return k == TY_BOOL || k == TY_CHAR || k == TY_SHORT ||
@@ -15,14 +23,6 @@ bool is_integer(Type *ty) {
 
 int align_to(int n, int align) {
   return (n + align - 1) & ~(align - 1);
-}
-
-static Type *new_type(TypeKind kind, int size, int align) {
-  Type *ty = calloc(1, sizeof(Type));
-  ty->kind = kind;
-  ty->size = size;
-  ty->align = align;
-  return ty;
 }
 
 Type *pointer_to(Type *base) {
