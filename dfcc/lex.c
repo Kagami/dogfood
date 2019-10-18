@@ -159,82 +159,59 @@ static Token *read_int_literal(Token *cur, char *start) {
   return tok;
 }
 
-// Tokenize `user_input`.
+// Tokenize user input.
 Token *lex(char *user_input) {
   char *p = user_input;
   Token head = { 0 };
   Token *cur = &head;
+  char *kw;
 
   while (*p) {
-    // Skip whitespace characters.
+    // Skip whitespace characters
     if (isspace(*p)) {
       p++;
-      continue;
-    }
-
-    // Skip line comments.
-    if (startswith(p, "//")) {
+    // Skip line comments
+    } else if (startswith(p, "//")) {
       p += 2;
-      while (*p != '\n')
+      while (*p != '\n') {
         p++;
-      continue;
-    }
-
-    // Skip block comments.
-    if (startswith(p, "/*")) {
+      }
+    // Skip block comments
+    } else if (startswith(p, "/*")) {
       char *q = strstr(p + 2, "*/");
-      if (!q)
-        error_at(p, "unclosed block comment");
+      if (!q) error_at(p, "unclosed block comment");
       p = q + 2;
-      continue;
-    }
-
     // String literal
-    if (*p == '"') {
+    } else if (*p == '"') {
       cur = read_string_literal(cur, p);
       p += cur->len;
-      continue;
-    }
-
     // Character literal
-    if (*p == '\'') {
+    } else if (*p == '\'') {
       cur = read_char_literal(cur, p);
       p += cur->len;
-      continue;
-    }
-
     // Keywords or multi-letter punctuators
-    char *kw = starts_with_reserved(p);
-    if (kw) {
+    } else if ((kw = starts_with_reserved(p))) {
       int len = strlen(kw);
       cur = new_token(TK_RESERVED, cur, p, len);
       p += len;
-      continue;
-    }
-
     // Identifier
-    if (is_ident_start(*p)) {
+    } else if (is_ident_start(*p)) {
       char *q = p++;
-      while (is_ident(*p))
+      while (is_ident(*p)) {
         p++;
+      }
       cur = new_token(TK_IDENT, cur, q, p - q);
-      continue;
-    }
-
     // Single-letter punctuators
-    if (ispunct(*p)) {
+    } else if (ispunct(*p)) {
       cur = new_token(TK_RESERVED, cur, p++, 1);
-      continue;
-    }
-
     // Integer literal
-    if (isdigit(*p)) {
+    } else if (isdigit(*p)) {
       cur = read_int_literal(cur, p);
       p += cur->len;
-      continue;
+    // Wrong input
+    } else {
+      error_at(p, "invalid token");
     }
-
-    error_at(p, "invalid token");
   }
 
   new_token(TK_EOF, cur, p, 0);
