@@ -1,4 +1,3 @@
-#define _GNU_SOURCE
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
@@ -51,7 +50,7 @@ struct Token {
   char cont_len;  // string literal length
 };
 
-Token *tokenize(char *user_input);
+Token *lex(char *user_input);
 
 //
 // parse.c
@@ -280,4 +279,4 @@ void add_type(Node *node);
 // gen.c
 //
 
-void codegen(Program *prog);
+void gen(Program *prog);

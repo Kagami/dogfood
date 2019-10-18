@@ -40,7 +40,7 @@ int main(int argc, char **argv) {
   error_init(filename, user_input);
 
   // Tokenize and parse.
-  Token *token = tokenize(user_input);
+  Token *token = lex(user_input);
   Program *prog = parse(token);
 
   // Assign offsets to local variables.
@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
   }
 
   // Traverse the AST to emit assembly.
-  codegen(prog);
+  gen(prog);
 
   return 0;
 }

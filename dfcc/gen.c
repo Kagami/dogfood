@@ -14,14 +14,14 @@ typedef struct {
 
 static GenContext *gCtx;
 
-static void gen(Node *node);
+static void gen_node(Node *node);
 
 // Pushes the given node's address to the stack.
 static void gen_addr(Node *node) {
   switch (node->kind) {
   case ND_VAR: {
     if (node->init)
-      gen(node->init);
+      gen_node(node->init);
 
     Var *var = node->var;
     if (var->is_local) {
@@ -33,7 +33,7 @@ static void gen_addr(Node *node) {
     return;
   }
   case ND_DEREF:
-    gen(node->lhs);
+    gen_node(node->lhs);
     return;
   case ND_MEMBER:
     gen_addr(node->lhs);
@@ -213,7 +213,7 @@ static void gen_binary(Node *node) {
 }
 
 // Generate code for a given node.
-static void gen(Node *node) {
+static void gen_node(Node *node) {
   switch (node->kind) {
   case ND_NULL:
     return;
@@ -226,12 +226,12 @@ static void gen(Node *node) {
     }
     return;
   case ND_EXPR_STMT:
-    gen(node->lhs);
+    gen_node(node->lhs);
     printf("  add rsp, 8\n");
     return;
   case ND_VAR:
     if (node->init)
-      gen(node->init);
+      gen_node(node->init);
     gen_addr(node);
     if (node->ty->kind != TY_ARRAY)
       load(node->ty);
@@ -243,19 +243,19 @@ static void gen(Node *node) {
     return;
   case ND_ASSIGN:
     gen_lval(node->lhs);
-    gen(node->rhs);
+    gen_node(node->rhs);
     store(node->ty);
     return;
   case ND_TERNARY: {
     int seq = gCtx->labelseq++;
-    gen(node->cond);
+    gen_node(node->cond);
     printf("  pop rax\n");
     printf("  cmp rax, 0\n");
     printf("  je  .L.else.%d\n", seq);
-    gen(node->then);
+    gen_node(node->then);
     printf("  jmp .L.end.%d\n", seq);
     printf(".L.else.%d:\n", seq);
-    gen(node->els);
+    gen_node(node->els);
     printf(".L.end.%d:\n", seq);
     return;
   }
@@ -303,24 +303,24 @@ static void gen(Node *node) {
     gen_lval(node->lhs);
     printf("  push [rsp]\n");
     load(node->lhs->ty);
-    gen(node->rhs);
+    gen_node(node->rhs);
     gen_binary(node);
     store(node->ty);
     return;
   case ND_COMMA:
-    gen(node->lhs);
-    gen(node->rhs);
+    gen_node(node->lhs);
+    gen_node(node->rhs);
     return;
   case ND_ADDR:
     gen_addr(node->lhs);
     return;
   case ND_DEREF:
-    gen(node->lhs);
+    gen_node(node->lhs);
     if (node->ty->kind != TY_ARRAY)
       load(node->ty);
     return;
   case ND_NOT:
-    gen(node->lhs);
+    gen_node(node->lhs);
     printf("  pop rax\n");
     printf("  cmp rax, 0\n");
     printf("  sete al\n");
@@ -328,18 +328,18 @@ static void gen(Node *node) {
     printf("  push rax\n");
     return;
   case ND_BITNOT:
-    gen(node->lhs);
+    gen_node(node->lhs);
     printf("  pop rax\n");
     printf("  not rax\n");
     printf("  push rax\n");
     return;
   case ND_LOGAND: {
     int seq = gCtx->labelseq++;
-    gen(node->lhs);
+    gen_node(node->lhs);
     printf("  pop rax\n");
     printf("  cmp rax, 0\n");
     printf("  je  .L.false.%d\n", seq);
-    gen(node->rhs);
+    gen_node(node->rhs);
     printf("  pop rax\n");
     printf("  cmp rax, 0\n");
     printf("  je  .L.false.%d\n", seq);
@@ -352,11 +352,11 @@ static void gen(Node *node) {
   }
   case ND_LOGOR: {
     int seq = gCtx->labelseq++;
-    gen(node->lhs);
+    gen_node(node->lhs);
     printf("  pop rax\n");
     printf("  cmp rax, 0\n");
     printf("  jne .L.true.%d\n", seq);
-    gen(node->rhs);
+    gen_node(node->rhs);
     printf("  pop rax\n");
     printf("  cmp rax, 0\n");
     printf("  jne .L.true.%d\n", seq);
@@ -370,21 +370,21 @@ static void gen(Node *node) {
   case ND_IF: {
     int seq = gCtx->labelseq++;
     if (node->els) {
-      gen(node->cond);
+      gen_node(node->cond);
       printf("  pop rax\n");
       printf("  cmp rax, 0\n");
       printf("  je  .L.else.%d\n", seq);
-      gen(node->then);
+      gen_node(node->then);
       printf("  jmp .L.end.%d\n", seq);
       printf(".L.else.%d:\n", seq);
-      gen(node->els);
+      gen_node(node->els);
       printf(".L.end.%d:\n", seq);
     } else {
-      gen(node->cond);
+      gen_node(node->cond);
       printf("  pop rax\n");
       printf("  cmp rax, 0\n");
       printf("  je  .L.end.%d\n", seq);
-      gen(node->then);
+      gen_node(node->then);
       printf(".L.end.%d:\n", seq);
     }
     return;
@@ -396,11 +396,11 @@ static void gen(Node *node) {
     gCtx->brkseq = gCtx->contseq = seq;
 
     printf(".L.continue.%d:\n", seq);
-    gen(node->cond);
+    gen_node(node->cond);
     printf("  pop rax\n");
     printf("  cmp rax, 0\n");
     printf("  je  .L.break.%d\n", seq);
-    gen(node->then);
+    gen_node(node->then);
     printf("  jmp .L.continue.%d\n", seq);
     printf(".L.break.%d:\n", seq);
 
@@ -415,18 +415,18 @@ static void gen(Node *node) {
     gCtx->brkseq = gCtx->contseq = seq;
 
     if (node->init)
-      gen(node->init);
+      gen_node(node->init);
     printf(".L.begin.%d:\n", seq);
     if (node->cond) {
-      gen(node->cond);
+      gen_node(node->cond);
       printf("  pop rax\n");
       printf("  cmp rax, 0\n");
       printf("  je  .L.break.%d\n", seq);
     }
-    gen(node->then);
+    gen_node(node->then);
     printf(".L.continue.%d:\n", seq);
     if (node->inc)
-      gen(node->inc);
+      gen_node(node->inc);
     printf("  jmp .L.begin.%d\n", seq);
     printf(".L.break.%d:\n", seq);
 
@@ -441,9 +441,9 @@ static void gen(Node *node) {
     gCtx->brkseq = gCtx->contseq = seq;
 
     printf(".L.begin.%d:\n", seq);
-    gen(node->then);
+    gen_node(node->then);
     printf(".L.continue.%d:\n", seq);
-    gen(node->cond);
+    gen_node(node->cond);
     printf("  pop rax\n");
     printf("  cmp rax, 0\n");
     printf("  jne .L.begin.%d\n", seq);
@@ -459,7 +459,7 @@ static void gen(Node *node) {
     gCtx->brkseq = seq;
     node->case_label = seq;
 
-    gen(node->cond);
+    gen_node(node->cond);
     printf("  pop rax\n");
 
     for (Node *n = node->case_next; n; n = n->case_next) {
@@ -477,7 +477,7 @@ static void gen(Node *node) {
     }
 
     printf("  jmp .L.break.%d\n", seq);
-    gen(node->then);
+    gen_node(node->then);
     printf(".L.break.%d:\n", seq);
 
     gCtx->brkseq = brk;
@@ -485,12 +485,12 @@ static void gen(Node *node) {
   }
   case ND_CASE:
     printf(".L.case.%d:\n", node->case_label);
-    gen(node->lhs);
+    gen_node(node->lhs);
     return;
   case ND_BLOCK:
   case ND_STMT_EXPR:
     for (Node *n = node->body; n; n = n->next)
-      gen(n);
+      gen_node(n);
     return;
   case ND_BREAK:
     if (gCtx->brkseq == 0)
@@ -507,13 +507,13 @@ static void gen(Node *node) {
     return;
   case ND_LABEL:
     printf(".L.label.%s.%s:\n", gCtx->funcname, node->label_name);
-    gen(node->lhs);
+    gen_node(node->lhs);
     return;
   case ND_FUNCALL: {
     // Gen function arguments
     int nargs = 0;
     for (Node *arg = node->args; arg; arg = arg->next) {
-      gen(arg);
+      gen_node(arg);
       nargs++;
     }
     // Assign arguments to corresponding register
@@ -559,21 +559,21 @@ static void gen(Node *node) {
   }
   case ND_RETURN:
     if (node->lhs) {
-      gen(node->lhs);
+      gen_node(node->lhs);
       printf("  pop rax\n");
     }
     printf("  jmp .L.return.%s\n", gCtx->funcname);
     return;
   case ND_CAST:
-    gen(node->lhs);
+    gen_node(node->lhs);
     truncate(node->ty);
     return;
   default:
     ;/* skip */
   }
 
-  gen(node->lhs);
-  gen(node->rhs);
+  gen_node(node->lhs);
+  gen_node(node->rhs);
   gen_binary(node);
 }
 
@@ -668,7 +668,7 @@ static void emit_text(Program *prog) {
 
     // Emit code
     for (Node *node = fn->node; node; node = node->next)
-      gen(node);
+      gen_node(node);
 
     // Epilogue
     printf(".L.return.%s:\n", gCtx->funcname);
@@ -678,7 +678,8 @@ static void emit_text(Program *prog) {
   }
 }
 
-void codegen(Program *prog) {
+// Generate code for entire program.
+void gen(Program *prog) {
   gCtx = calloc(1, sizeof(GenContext));
   gCtx->labelseq = 1;
 

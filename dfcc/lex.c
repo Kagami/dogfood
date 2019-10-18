@@ -15,7 +15,7 @@ static bool startswith(char *p, char *q) {
 }
 
 static bool is_ident_start(char c) {
-  return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || c == '_';
+  return isalpha(c) || c == '_';
 }
 
 static bool is_ident(char c) {
@@ -156,7 +156,7 @@ static Token *read_int_literal(Token *cur, char *start) {
 }
 
 // Tokenize `user_input`.
-Token *tokenize(char *user_input) {
+Token *lex(char *user_input) {
   char *p = user_input;
   Token head = { 0 };
   Token *cur = &head;

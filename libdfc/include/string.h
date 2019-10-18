@@ -8,3 +8,4 @@ char *strerror(int errnum);
 
 void *memcpy(char *dst, char *src, long n);
 int memcmp(void *s1, void *s2, long n);
+void *memchr(void *s, int c, long n);
