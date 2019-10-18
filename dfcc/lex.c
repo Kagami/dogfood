@@ -139,13 +139,16 @@ static Token *read_int_literal(Token *cur, char *start) {
   long val = strtol(p, &p, base);
   Type *ty = gIntType;
 
-  // Read L or LL prefix or infer a type.
-  if (startswith(p, "LL") || startswith(p, "ll")) {
-    p += 2;
-    ty = gLongType;
-  } else if (*p == 'L' || *p == 'l') {
+  // Read L, LL, LLU, LU, U, UL, ULL prefix or infer a type.
+  if (*p == 'L' || *p == 'l') {
     p++;
     ty = gLongType;
+    if (*p == 'L' || *p == 'l') { p++; }
+    if (*p == 'U' || *p == 'u') { p++; }
+  } else if (*p == 'U' || *p == 'u') {
+    p++;
+    if (*p == 'L' || *p == 'l') { p++; ty = gLongType; }
+    if (*p == 'L' || *p == 'l') { p++; }
   } else if (val != (int)val) {
     ty = gLongType;
   }

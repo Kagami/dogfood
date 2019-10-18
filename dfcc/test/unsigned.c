@@ -25,4 +25,12 @@ void test() {
   assert_eq(8, sizeof(long long), "sizeof(long long)");
   assert_eq(8, sizeof(signed long long), "sizeof(signed long long)");
   assert_eq(8, sizeof(signed long long int), "sizeof(signed long long int)");
+
+  assert(4, sizeof(0), "sizeof(0)");
+  assert(8, sizeof(0UL), "sizeof(0UL)");
+  assert(8, sizeof(0ULL), "sizeof(0ULL)");
+  assert(8, sizeof(0lu), "sizeof(0lu)");
+  assert(8, sizeof(0llu), "sizeof(0llu)");
+  assert(8, sizeof(0x0UL), "sizeof(0x0UL)");
+  assert(8, sizeof(0b0LU), "sizeof(0b0LU)");
 }
