@@ -427,7 +427,7 @@ static bool is_typename(void) {
   return peek("void") || peek("_Bool") || peek("char") || peek("short") ||
          peek("int") || peek("long") || peek("enum") || peek("struct") ||
          peek("typedef") || peek("static") || peek("extern") ||
-         peek("signed") || find_typedef(gCtx->tok);
+         peek("signed") || peek("unsigned") || find_typedef(gCtx->tok);
 }
 
 static Node *struct_ref(Node *lhs) {
@@ -868,20 +868,22 @@ static Function *function(void) {
 //
 // Note that "typedef" and "static" can appear anywhere in a basetype.
 // "int" can appear anywhere if type is short, long or long long.
-// "signed" can appear anywhere if type is short, int, long or long long.
+// "signed" or "unsigned" can appear anywhere if type is short, int,
+// long or long long.
 static Type *basetype(StorageClass *sclass) {
   if (!is_typename())
     error_tok(gCtx->tok, "typename expected");
 
   enum {
-    VOID   = 1 << 0,
-    BOOL   = 1 << 2,
-    CHAR   = 1 << 4,
-    SHORT  = 1 << 6,
-    INT    = 1 << 8,
-    LONG   = 1 << 10,
-    OTHER  = 1 << 12,
-    SIGNED = 1 << 13,
+    VOID     = 1 << 0,
+    BOOL     = 1 << 2,
+    CHAR     = 1 << 4,
+    SHORT    = 1 << 6,
+    INT      = 1 << 8,
+    LONG     = 1 << 10,
+    OTHER    = 1 << 12,
+    SIGNED   = 1 << 13,
+    UNSIGNED = 1 << 14,
   };
 
   Type *ty = gIntType;
@@ -913,7 +915,7 @@ static Type *basetype(StorageClass *sclass) {
     // Handle user-defined types.
     if (!peek("void") && !peek("_Bool") && !peek("char") &&
         !peek("short") && !peek("int") && !peek("long") &&
-        !peek("signed")) {
+        !peek("signed") && !peek("unsigned")) {
       if (counter)
         break;
 
@@ -946,6 +948,8 @@ static Type *basetype(StorageClass *sclass) {
       counter += LONG;
     else if (consume("signed"))
       counter |= SIGNED;
+    else if (consume("unsigned"))
+      counter |= UNSIGNED;
 
     switch (counter) {
     case VOID:
@@ -962,11 +966,15 @@ static Type *basetype(StorageClass *sclass) {
     case SHORT + INT:
     case SIGNED + SHORT:
     case SIGNED + SHORT + INT:
+    case UNSIGNED + SHORT:
+    case UNSIGNED + SHORT + INT:
       ty = gShortType;
       break;
     case INT:
     case SIGNED:
     case SIGNED + INT:
+    case UNSIGNED:
+    case UNSIGNED + INT:
       ty = gIntType;
       break;
     case LONG:
@@ -977,6 +985,10 @@ static Type *basetype(StorageClass *sclass) {
     case SIGNED + LONG + INT:
     case SIGNED + LONG + LONG:
     case SIGNED + LONG + LONG + INT:
+    case UNSIGNED + LONG:
+    case UNSIGNED + LONG + INT:
+    case UNSIGNED + LONG + LONG:
+    case UNSIGNED + LONG + LONG + INT:
       ty = gLongType;
       break;
     default:
