@@ -61,13 +61,6 @@ int;
 struct {char a; int b;};
 typedef struct {char a; int b;} Ty1;
 
-int assert_eq(long expected, long actual, char *code) {
-  if (expected != actual) {
-    printf("%s => %ld expected but got %ld\n", code, expected, actual);
-    exit(1);
-  }
-}
-
 int ret3() {
   return 3;
   return 5;
@@ -130,7 +123,7 @@ int counter() {
 _Bool true_fn() { return 513; }
 _Bool false_fn() { return 512; }
 
-int main() {
+void test() {
   assert_eq(8, ({ int a=3; int z=5; a+z; }), "int a=3; int z=5; a+z;");
 
   assert_eq(0, 0, "0");
@@ -731,7 +724,4 @@ int main() {
   TestEnum *enumValue2 = &enumValue;
   assert_eq(1, enumValue - 1, "enumValue - 1");
   assert_eq(0, *enumValue2 - 2, "*enumValue2 - 2");
-
-  printf("OK\n");
-  return 0;
 }
