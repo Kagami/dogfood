@@ -1,3 +1,7 @@
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 #include "dfcc.h"
 
 // Returns the contents of a given file.

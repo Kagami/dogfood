@@ -1,3 +1,7 @@
+#include <ctype.h>
+#include <stdlib.h>
+#include <string.h>
+#include <strings.h>
 #include "dfcc.h"
 
 // Create a new token and add it as the next token of `cur`.

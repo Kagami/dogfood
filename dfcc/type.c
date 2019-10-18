@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include "dfcc.h"
 
 Type *gVoidType  = &(Type){ TY_VOID, 1, 1 };

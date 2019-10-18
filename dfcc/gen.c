@@ -1,3 +1,7 @@
+#include <assert.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 #include "dfcc.h"
 
 static char *gArgreg1[] = {"dil", "sil", "dl", "cl", "r8b", "r9b"};

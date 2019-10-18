@@ -1,3 +1,6 @@
+#include <stdlib.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include "dfcc.h"
 
 static char gColorBlack[]   = { 27, '[', '3', '0', ';', '1', 'm', 0 };
