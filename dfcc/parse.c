@@ -83,9 +83,11 @@ static char *df_strndup(char *s, long n) {
 
 // Consumes the current token if it matches `op`.
 static Token *consume(char *op) {
-  if (gCtx->tok->kind != TK_RESERVED || strlen(op) != gCtx->tok->len ||
-      strncmp(gCtx->tok->str, op, gCtx->tok->len))
+  if (gCtx->tok->kind != TK_RESERVED
+      || strlen(op) != gCtx->tok->len
+      || strncmp(gCtx->tok->str, op, gCtx->tok->len) != 0) {
     return NULL;
+  }
   Token *t = gCtx->tok;
   gCtx->tok = gCtx->tok->next;
   return t;
@@ -93,8 +95,7 @@ static Token *consume(char *op) {
 
 // Consumes the current token if it is an identifier.
 static Token *consume_ident(void) {
-  if (gCtx->tok->kind != TK_IDENT)
-    return NULL;
+  if (gCtx->tok->kind != TK_IDENT) return NULL;
   Token *t = gCtx->tok;
   gCtx->tok = gCtx->tok->next;
   return t;
@@ -105,17 +106,20 @@ static Token *consume_ident(void) {
 // like we are at the end of such list.
 static bool consume_end(void) {
   Token *tok = gCtx->tok;
-  if (consume("}") || (consume(",") && consume("}")))
+  if (consume("}") || (consume(",") && consume("}"))) {
     return true;
+  }
   gCtx->tok = tok;
   return false;
 }
 
 // Returns true if the current token matches a given string.
 static Token *peek(char *s) {
-  if (gCtx->tok->kind != TK_RESERVED || strlen(s) != gCtx->tok->len ||
-      strncmp(gCtx->tok->str, s, gCtx->tok->len))
+  if (gCtx->tok->kind != TK_RESERVED
+      || strlen(s) != gCtx->tok->len
+      || strncmp(gCtx->tok->str, s, gCtx->tok->len) != 0) {
     return NULL;
+  }
   return gCtx->tok;
 }
 
@@ -128,36 +132,38 @@ static bool peek_end(void) {
 
 // Ensure that the current token is a given string
 static void expect(char *s) {
-  if (!peek(s))
+  if (!peek(s)) {
     error_tok(gCtx->tok, "expected \"%s\"", s);
+  }
   gCtx->tok = gCtx->tok->next;
 }
 
 // Ensure that the current token is TK_IDENT.
 static char *expect_ident(void) {
-  if (gCtx->tok->kind != TK_IDENT)
+  if (gCtx->tok->kind != TK_IDENT) {
     error_tok(gCtx->tok, "expected an identifier");
+  }
   char *s = df_strndup(gCtx->tok->str, gCtx->tok->len);
   gCtx->tok = gCtx->tok->next;
   return s;
 }
 
 static void expect_end(void) {
-  if (!consume_end())
+  if (!consume_end()) {
     expect("}");
+  }
 }
 
 static Node *assign(void);
 
 static void skip_excess_elements2(void) {
   for (;;) {
-    if (consume("{"))
+    if (consume("{")) {
       skip_excess_elements2();
-    else
+    } else {
       assign();
-
-    if (consume_end())
-      return;
+    }
+    if (consume_end()) return;
     expect(",");
   }
 }
@@ -393,41 +399,60 @@ static void push_tag_scope(Token *tok, Type *ty) {
 
 // Find a variable or a typedef by name.
 static VarScope *find_var(Token *tok) {
-  for (VarScope *sc = gCtx->var_scope; sc; sc = sc->next)
-    if (strlen(sc->name) == tok->len && !strncmp(tok->str, sc->name, tok->len))
+  for (VarScope *sc = gCtx->var_scope; sc; sc = sc->next) {
+    if (strlen(sc->name) == tok->len
+        && strncmp(tok->str, sc->name, tok->len) == 0) {
       return sc;
+    }
+  }
   return NULL;
 }
 
 static TagScope *find_tag(Token *tok) {
-  for (TagScope *sc = gCtx->tag_scope; sc; sc = sc->next)
-    if (strlen(sc->name) == tok->len && !strncmp(tok->str, sc->name, tok->len))
+  for (TagScope *sc = gCtx->tag_scope; sc; sc = sc->next) {
+    if (strlen(sc->name) == tok->len
+        && strncmp(tok->str, sc->name, tok->len) == 0) {
       return sc;
+    }
+  }
   return NULL;
 }
 
 static Type *find_typedef(Token *tok) {
   if (tok->kind == TK_IDENT) {
     VarScope *sc = find_var(tok);
-    if (sc)
-      return sc->type_def;
+    if (sc) return sc->type_def;
   }
   return NULL;
 }
 
 static Member *find_member(Type *ty, char *name) {
-  for (Member *mem = ty->members; mem; mem = mem->next)
-    if (!strcmp(mem->name, name))
-      return mem;
+  for (Member *mem = ty->members; mem; mem = mem->next) {
+    if (strcmp(mem->name, name) == 0) return mem;
+  }
   return NULL;
+}
+
+static bool is_storage_class(void) {
+    return peek("typedef") || peek("static") || peek("extern");
+}
+
+static bool is_builtin_type(void) {
+  return (
+    peek("void") || peek("_Bool") || peek("char") ||
+    peek("short") || peek("int") || peek("long") ||
+    peek("signed") || peek("unsigned")
+  );
 }
 
 // Returns true if the next token represents a type.
 static bool is_typename(void) {
-  return peek("void") || peek("_Bool") || peek("char") || peek("short") ||
-         peek("int") || peek("long") || peek("enum") || peek("struct") ||
-         peek("typedef") || peek("static") || peek("extern") ||
-         peek("signed") || peek("unsigned") || find_typedef(gCtx->tok);
+  return (
+    is_storage_class() ||
+    is_builtin_type() ||
+    peek("const") ||
+    peek("enum") || peek("struct") || find_typedef(gCtx->tok)
+  );
 }
 
 static Node *struct_ref(Node *lhs) {
@@ -512,10 +537,8 @@ static long eval2(Node *node, Var **var) {
     *var = node->var;
     return 0;
   default:
-    ;/* skip */
+    error_tok(node->tok, "not a constant expression");
   }
-
-  error_tok(node->tok, "not a constant expression");
   return 0;
 }
 
@@ -535,6 +558,7 @@ static Type *basetype(StorageClass *sclass);
 static Type *declarator(Type *ty, char **name);
 static Type *struct_decl(void);
 static Type *enum_specifier(void);
+static bool type_qualifier();
 static Type *type_suffix(Type *ty);
 static Member *struct_member(void);
 static Node *stmt(void);
@@ -861,18 +885,17 @@ static Function *function(void) {
   return fn;
 }
 
+// TODO(Kagami): Proper BNF.
 // basetype = builtin-type | struct-decl | typedef-name | enum-specifier
+// builtin-type = "void" | "_Bool" | "char" | "short" | "int" | "long" | "long" "long"
 //
-// builtin-type = "void" | "_Bool" | "char" | "short" | "int"
-//              | "long" | "long" "long"
-//
-// Note that "typedef" and "static" can appear anywhere in a basetype.
+// "typedef", "static", "extern" can appear anywhere in a basetype.
 // "int" can appear anywhere if type is short, long or long long.
-// "signed" or "unsigned" can appear anywhere if type is short, int,
-// long or long long.
+// "signed" or "unsigned" can appear anywhere if type is char, short, int, long or long long.
 static Type *basetype(StorageClass *sclass) {
-  if (!is_typename())
+  if (!is_typename()) {
     error_tok(gCtx->tok, "typename expected");
+  }
 
   enum {
     VOID     = 1 << 0,
@@ -889,35 +912,39 @@ static Type *basetype(StorageClass *sclass) {
   Type *ty = gIntType;
   int counter = 0;
 
-  if (sclass)
+  if (sclass) {
     *sclass = 0;
+  }
 
   while (is_typename()) {
     Token *tok = gCtx->tok;
 
     // Handle storage class specifiers.
-    if (peek("typedef") || peek("static") || peek("extern")) {
-      if (!sclass)
+    if (is_storage_class()) {
+      if (!sclass) {
         error_tok(tok, "storage class specifier is not allowed");
-
-      if (consume("typedef"))
+      }
+      if (consume("typedef")) {
         *sclass |= TYPEDEF;
-      else if (consume("static"))
+      } else if (consume("static")) {
         *sclass |= STATIC;
-      else if (consume("extern"))
+      } else if (consume("extern")) {
         *sclass |= EXTERN;
-
-      if (*sclass & (*sclass - 1))
+      }
+      if (*sclass & (*sclass - 1)) {
         error_tok(tok, "typedef, static and extern may not be used together");
+      }
+      continue;
+    }
+
+    // Handle type qualifiers.
+    if (type_qualifier()) {
       continue;
     }
 
     // Handle user-defined types.
-    if (!peek("void") && !peek("_Bool") && !peek("char") &&
-        !peek("short") && !peek("int") && !peek("long") &&
-        !peek("signed") && !peek("unsigned")) {
-      if (counter)
-        break;
+    if (!is_builtin_type()) {
+      if (counter) break;
 
       if (peek("struct")) {
         ty = struct_decl();
@@ -934,22 +961,23 @@ static Type *basetype(StorageClass *sclass) {
     }
 
     // Handle built-in types.
-    if (consume("void"))
+    if (consume("void")) {
       counter += VOID;
-    else if (consume("_Bool"))
+    } else if (consume("_Bool")) {
       counter += BOOL;
-    else if (consume("char"))
+    } else if (consume("char")) {
       counter += CHAR;
-    else if (consume("short"))
+    } else if (consume("short")) {
       counter += SHORT;
-    else if (consume("int"))
+    } else if (consume("int")) {
       counter += INT;
-    else if (consume("long"))
+    } else if (consume("long")) {
       counter += LONG;
-    else if (consume("signed"))
+    } else if (consume("signed")) {
       counter |= SIGNED;
-    else if (consume("unsigned"))
+    } else if (consume("unsigned")) {
       counter |= UNSIGNED;
+    }
 
     switch (counter) {
     case VOID:
@@ -960,6 +988,7 @@ static Type *basetype(StorageClass *sclass) {
       break;
     case CHAR:
     case SIGNED + CHAR:
+    case UNSIGNED + CHAR:
       ty = gCharType;
       break;
     case SHORT:
@@ -999,10 +1028,12 @@ static Type *basetype(StorageClass *sclass) {
   return ty;
 }
 
-// declarator = "*"* ("(" declarator ")" | ident) type-suffix
+// declarator = ("*" type-qualifier?)* ("(" declarator ")" | ident) type-suffix
 static Type *declarator(Type *ty, char **name) {
-  while (consume("*"))
+  while (consume("*")) {
     ty = pointer_to(ty);
+    type_qualifier();
+  }
 
   if (consume("(")) {
     Type *placeholder = calloc(1, sizeof(Type));
@@ -1132,6 +1163,12 @@ static Type *enum_specifier(void) {
   if (tag)
     push_tag_scope(tag, ty);
   return ty;
+}
+
+// type-qualifier = "const" | "restrict" | "volatile" | "_Atomic"
+// TODO(Kagami): Proper implementation.
+static bool type_qualifier() {
+  return consume("const");
 }
 
 // type-suffix = ("[" const-expr? "]" type-suffix)?
@@ -1767,10 +1804,12 @@ static Type *type_name(void) {
   return type_suffix(ty);
 }
 
-// abstract-declarator = "*"* ("(" abstract-declarator ")")? type-suffix
+// abstract-declarator = ("*" type-qualifier?)* ("(" abstract-declarator ")")? type-suffix
 static Type *abstract_declarator(Type *ty) {
-  while (consume("*"))
+  while (consume("*")) {
     ty = pointer_to(ty);
+    type_qualifier();
+  }
 
   if (consume("(")) {
     Type *placeholder = calloc(1, sizeof(Type));
@@ -1779,6 +1818,7 @@ static Type *abstract_declarator(Type *ty) {
     memcpy(placeholder, type_suffix(ty), sizeof(Type));
     return new_ty;
   }
+
   return type_suffix(ty);
 }
 

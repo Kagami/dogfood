@@ -14,7 +14,7 @@ stage1: $(OBJS1)
 stage2: $(OBJS2)
 	$(CC) $(LDFLAGS) -o $@ $(OBJS2)
 
-test: $(TESTS)
+test t: $(TESTS)
 	@echo -e " \e[32mOK"
 
 .tmp1/%.o: %.c dfcc.h

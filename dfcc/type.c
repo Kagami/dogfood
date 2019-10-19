@@ -151,6 +151,6 @@ void add_type(Node *node) {
     return;
   }
   default:
-    ;/* skip */
+    return;
   }
 }

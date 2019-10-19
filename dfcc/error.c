@@ -50,7 +50,7 @@ static void verror_at(LogLevel lvl, char *loc, char *fmt, va_list ap) {
       line_num++;
 
   // Print out the line.
-  fprintf(stderr, "%s", gColorBlack);
+  fprintf(stderr, "\r%s", gColorBlack);
   int indent = fprintf(stderr, "%s:%d: ", gCtx->filename, line_num);
   fprintf(stderr, "%s%.*s\n", gColorReset, (int)(end - line), line);
 

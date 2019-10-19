@@ -32,7 +32,8 @@ static char *starts_with_reserved(char *p) {
                        "char", "sizeof", "struct", "typedef", "short",
                        "long", "void", "_Bool", "enum", "static", "break",
                        "continue", "goto", "switch", "case", "default",
-                       "extern", "_Alignof", "do", "signed", "unsigned"};
+                       "extern", "_Alignof", "do", "signed", "unsigned",
+                       "const"};
 
   for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
     int len = strlen(kw[i]);
@@ -139,7 +140,7 @@ static Token *read_int_literal(Token *cur, char *start) {
   long val = strtol(p, &p, base);
   Type *ty = gIntType;
 
-  // Read L, LL, LLU, LU, U, UL, ULL prefix or infer a type.
+  // Read L, LL, LU, LLU, U, UL, ULL prefix or infer a type.
   if (*p == 'L' || *p == 'l') {
     p++;
     ty = gLongType;
@@ -153,8 +154,9 @@ static Token *read_int_literal(Token *cur, char *start) {
     ty = gLongType;
   }
 
-  if (is_ident(*p))
+  if (is_ident(*p)) {
     error_at(p, "invalid digit");
+  }
 
   Token *tok = new_token(TK_NUM, cur, start, p - start);
   tok->val = val;
