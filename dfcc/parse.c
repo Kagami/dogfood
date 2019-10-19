@@ -70,17 +70,6 @@ static ParserContext *gCtx;
 // Token walk helpers
 //
 
-static char *df_strndup(const char *s, size_t n) {
-  const char *z = memchr(s, '\0', n);
-  if (z) {
-    n = z - s;
-  }
-  char *q = malloc(n + 1);
-  memcpy(q, s, n);
-  q[n] = '\0';
-  return q;
-}
-
 // Consumes the current token if it matches `op`.
 static Token *consume(char *op) {
   if (gCtx->tok->kind != TK_RESERVED
@@ -143,7 +132,7 @@ static char *expect_ident(void) {
   if (gCtx->tok->kind != TK_IDENT) {
     error_tok(gCtx->tok, "expected an identifier");
   }
-  char *s = df_strndup(gCtx->tok->str, gCtx->tok->len);
+  char *s = strndup(gCtx->tok->str, gCtx->tok->len);
   gCtx->tok = gCtx->tok->next;
   return s;
 }
@@ -254,7 +243,7 @@ static char *new_label(void) {
   static int cnt = 0;
   char buf[20];
   sprintf(buf, ".L.data.%d", cnt++);
-  return df_strndup(buf, 20);
+  return strndup(buf, 20);
 }
 
 static Node *new_add(Node *lhs, Node *rhs, Token *tok) {
@@ -391,7 +380,7 @@ static VarScope *push_scope(char *name) {
 static void push_tag_scope(Token *tok, Type *ty) {
   TagScope *sc = calloc(1, sizeof(TagScope));
   sc->next = gCtx->tag_scope;
-  sc->name = df_strndup(tok->str, tok->len);
+  sc->name = strndup(tok->str, tok->len);
   sc->depth = gCtx->scope_depth;
   sc->ty = ty;
   gCtx->tag_scope = sc;
@@ -1376,7 +1365,7 @@ static Node *stmt2(void) {
   if ((tok = consume_ident())) {
     if (consume(":")) {
       Node *node = new_unary(ND_LABEL, stmt(), tok);
-      node->label_name = df_strndup(tok->str, tok->len);
+      node->label_name = strndup(tok->str, tok->len);
       return node;
     }
     gCtx->tok = tok;
@@ -1970,7 +1959,7 @@ static Node *primary(void) {
     // Function call
     if (consume("(")) {
       Node *node = new_node(ND_FUNCALL, tok);
-      node->funcname = df_strndup(tok->str, tok->len);
+      node->funcname = strndup(tok->str, tok->len);
       node->args = func_args();
       add_type(node);
 

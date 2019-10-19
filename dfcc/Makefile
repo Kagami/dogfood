@@ -1,4 +1,4 @@
-CFLAGS = -Wall -Wpedantic -Werror -g -std=c11
+CFLAGS = -D_POSIX_C_SOURCE=200809L -Wall -Wpedantic -Werror -g -std=c11
 LDFLAGS = -no-pie
 SRCS = $(wildcard *.c)
 OBJS1 = $(addprefix .tmp1/,$(SRCS:.c=.o))

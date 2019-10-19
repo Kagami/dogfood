@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <unistd.h>
 #include "dfcc.h"
 
 typedef struct {
@@ -11,33 +12,58 @@ typedef struct {
   bool is_stdout;
 } Opts;
 
-static void usage(int rc) {
-  fprintf(stderr,
-    "usage:\n"
-    /*"  dfcc [options] -o <outfile> <infile>\n"
-    "  dfcc [-h | --help]\n"
-    "\n"
-    "options:\n"
-    "  -h, --help    show this help message and exit\n"
-    "  -o outfile    specify the output file\n"
-    "  -c            compile the input file but do not link\n"
-    "  -std=c11      comply to C11 language standard (default)\n"
-    "  -Wall         enable all warnings (default)\n"
-    "  -Wpedantic    enable strict ISO C compliance (default)\n"
-    "  -Werror       treat warnings as errors\n"
-    "  -fdump-ast    dump AST tree\n"
-    "  -g            enable debug information\n"*/
-  );
-  exit(rc);
+static void usage(const char *err_msg) {
+  if (err_msg) {
+    fprintf(stderr, "error: %s\n", err_msg);
+  }
+  fprintf(stderr, "usage: dfcc [-h] [options] -o <outfile> <infile>\n");
+  if (!err_msg) {
+    fprintf(stderr,
+      "\n"
+      /*"options:\n"
+      "  -h            show this help message and exit\n"
+      "  -o outfile    specify the output file\n"
+      "  -c            compile the input file but do not link\n"
+      "  -std=c11      comply to C11 language standard (default)\n"
+      "  -Wall         enable all warnings (default)\n"
+      "  -Wpedantic    enable strict ISO C compliance (default)\n"
+      "  -Werror       treat warnings as errors\n"
+      "  -fdump-ast    dump AST tree\n"
+      "  -g            enable debug information\n"*/
+    );
+  }
+  exit(err_msg ? 1 : 0);
 }
 
 static const Opts *read_opts(int argc, char **argv) {
-  if (argc != 2) usage(1);
   Opts *opts = calloc(1, sizeof(Opts));
-  opts->inpath = argv[1];
-  opts->outpath = NULL;
+  for (;;) {
+    const int opt = getopt(argc, argv, ":o:W:f:hcg");
+    if (opt == -1) break;
+    switch (opt) {
+    case 'o':
+      opts->outpath = optarg;
+      opts->is_stdout = strcmp(opts->outpath, "-") == 0;
+      break;
+    case 'W':
+      break;
+    case 'f':
+      break;
+    case 'h':
+      usage(NULL);
+    case 'c':
+      break;
+    case 'g':
+      break;
+    default:
+      usage("invalid option");
+    }
+  }
+  if (optind != argc - 1 || !opts->outpath) {
+    // usage("output file required");
+  }
+  opts->inpath = argv[optind];
   opts->is_stdin = strcmp(opts->inpath, "-") == 0;
-  opts->is_stdout = true;
   return opts;
 }
 

@@ -8,3 +8,7 @@ char *strerror(int errnum);
 void *memcpy(void *dst, const void *src, size_t n);
 int memcmp(const void *s1, const void *s2, size_t n);
 void *memchr(const void *s, int c, size_t n);
+
+#if _POSIX_C_SOURCE >= 200809L
+char *strndup(const char *s, size_t n);
+#endif
