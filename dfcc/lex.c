@@ -5,7 +5,7 @@
 #include "dfcc.h"
 
 // Create a new token and add it as the next token of `cur`.
-static Token *new_token(TokenKind kind, Token *cur, char *str, int len) {
+static Token *new_token(TokenKind kind, Token *cur, const char *str, int len) {
   Token *tok = calloc(1, sizeof(Token));
   tok->kind = kind;
   tok->str = str;
@@ -14,7 +14,7 @@ static Token *new_token(TokenKind kind, Token *cur, char *str, int len) {
   return tok;
 }
 
-static bool startswith(char *p, char *q) {
+static bool startswith(const char *p, const char *q) {
   return strncmp(p, q, strlen(q)) == 0;
 }
 
@@ -26,29 +26,34 @@ static bool is_ident(char c) {
   return is_ident_start(c) || isdigit(c);
 }
 
-static char *starts_with_reserved(char *p) {
+static const char *starts_with_reserved(const char *p) {
   // Keyword
-  static char *kw[] = {"return", "if", "else", "while", "for", "int",
-                       "char", "sizeof", "struct", "typedef", "short",
-                       "long", "void", "_Bool", "enum", "static", "break",
-                       "continue", "goto", "switch", "case", "default",
-                       "extern", "_Alignof", "do", "signed", "unsigned",
-                       "const"};
-
-  for (int i = 0; i < sizeof(kw) / sizeof(*kw); i++) {
-    int len = strlen(kw[i]);
-    if (startswith(p, kw[i]) && !is_ident(p[len]))
-      return kw[i];
+  static const char *kws[] = {
+    "return", "if", "else", "while", "for", "int",
+    "char", "sizeof", "struct", "typedef", "short",
+    "long", "void", "_Bool", "enum", "static", "break",
+    "continue", "goto", "switch", "case", "default",
+    "extern", "_Alignof", "do", "signed", "unsigned",
+    "const",
+  };
+  static const int kw_len = sizeof(kws) / sizeof(*kws);
+  for (int i = 0; i < kw_len; i++) {
+    const int len = strlen(kws[i]);
+    if (startswith(p, kws[i]) && !is_ident(p[len])) {
+      return kws[i];
+    }
   }
 
   // Multi-letter punctuator
-  static char *ops[] = {"<<=", ">>=", "...", "==", "!=", "<=", ">=",
-                        "->", "++", "--", "<<", ">>", "+=", "-=", "*=",
-                        "/=", "&&", "||", "&=", "|=", "^="};
-
-  for (int i = 0; i < sizeof(ops) / sizeof(*ops); i++)
-    if (startswith(p, ops[i]))
-      return ops[i];
+  static const char *ops[] = {
+    "<<=", ">>=", "...", "==", "!=", "<=", ">=",
+    "->", "++", "--", "<<", ">>", "+=", "-=", "*=",
+    "/=", "&&", "||", "&=", "|=", "^=",
+  };
+  static const int op_len = sizeof(ops) / sizeof(*ops);
+  for (int i = 0; i < op_len; i++) {
+    if (startswith(p, ops[i])) return ops[i];
+  }
 
   return NULL;
 }
@@ -68,8 +73,8 @@ static char get_escape_char(char c) {
   }
 }
 
-static Token *read_string_literal(Token *cur, char *start) {
-  char *p = start + 1;
+static Token *read_string_literal(Token *cur, const char *start) {
+  const char *p = start + 1;
   char buf[1024];
   int len = 0;
 
@@ -97,8 +102,8 @@ static Token *read_string_literal(Token *cur, char *start) {
   return tok;
 }
 
-static Token *read_char_literal(Token *cur, char *start) {
-  char *p = start + 1;
+static Token *read_char_literal(Token *cur, const char *start) {
+  const char *p = start + 1;
   if (*p == '\0')
     error_at(start, "unclosed char literal");
 
@@ -120,8 +125,8 @@ static Token *read_char_literal(Token *cur, char *start) {
   return tok;
 }
 
-static Token *read_int_literal(Token *cur, char *start) {
-  char *p = start;
+static Token *read_int_literal(Token *cur, const char *start) {
+  const char *p = start;
 
   // Read a binary, octal, decimal or hexadecimal number.
   int base;
@@ -137,7 +142,7 @@ static Token *read_int_literal(Token *cur, char *start) {
     base = 10;
   }
 
-  long val = strtol(p, &p, base);
+  long val = strtol(p, (char**)&p, base);
   Type *ty = gIntType;
 
   // Read L, LL, LU, LLU, U, UL, ULL prefix or infer a type.
@@ -165,11 +170,11 @@ static Token *read_int_literal(Token *cur, char *start) {
 }
 
 // Tokenize user input.
-Token *lex(char *user_input) {
-  char *p = user_input;
+Token *lex(const char *user_input) {
+  const char *p = user_input;
   Token head = { 0 };
   Token *cur = &head;
-  char *kw;
+  const char *kw;
 
   while (*p) {
     // Skip whitespace characters
@@ -201,7 +206,7 @@ Token *lex(char *user_input) {
       p += len;
     // Identifier
     } else if (is_ident_start(*p)) {
-      char *q = p++;
+      const char *q = p++;
       while (is_ident(*p)) {
         p++;
       }

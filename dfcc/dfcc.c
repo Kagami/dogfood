@@ -4,18 +4,53 @@
 #include <stdio.h>
 #include "dfcc.h"
 
-// Returns the contents of a given file.
-static char *read_file(char *path, bool is_stdin) {
+typedef struct {
+  const char *inpath;
+  const char *outpath;
+  bool is_stdin;
+  bool is_stdout;
+} Opts;
+
+static void usage(int rc) {
+  fprintf(stderr,
+    "usage:\n"
+    /*"  dfcc [options] -o <outfile> <infile>\n"
+    "  dfcc [-h | --help]\n"
+    "\n"
+    "options:\n"
+    "  -h, --help    show this help message and exit\n"
+    "  -o outfile    specify the output file\n"
+    "  -c            compile the input file but do not link\n"
+    "  -std=c11      comply to C11 language standard (default)\n"
+    "  -Wall         enable all warnings (default)\n"
+    "  -Wpedantic    enable strict ISO C compliance (default)\n"
+    "  -Werror       treat warnings as errors\n"
+    "  -fdump-ast    dump AST tree\n"
+    "  -g            enable debug information\n"*/
+  );
+  exit(rc);
+}
+
+static const Opts *read_opts(int argc, char **argv) {
+  if (argc != 2) usage(1);
+  Opts *opts = calloc(1, sizeof(Opts));
+  opts->inpath = argv[1];
+  opts->outpath = NULL;
+  opts->is_stdin = strcmp(opts->inpath, "-") == 0;
+  opts->is_stdout = true;
+  return opts;
+}
+
+static const char *read_file(const char *path, bool is_stdin) {
   FILE *fp;
   if (is_stdin) {
     fp = stdin;
   } else {
-    // Open and read the file.
     fp = fopen(path, "r");
     if (!fp) error("cannot open %s: %s", path, strerror(errno));
   }
 
-  int filemax = 10 * 1024 * 1024;
+  static const int filemax = 10 * 1024 * 1024;
   char *buf = malloc(filemax);
   int size = fread(buf, 1, filemax - 2, fp);
   if (!feof(fp)) error("%s: file too large", path);
@@ -29,22 +64,15 @@ static char *read_file(char *path, bool is_stdin) {
 }
 
 int main(int argc, char **argv) {
-  if (argc != 2) {
-    fprintf(stderr, "usage: %s <infile>\n", argv[0]);
-    exit(1);
-  }
+  // Parse opts.
+  const Opts *opts = read_opts(argc, argv);
 
   // Prepare input.
-  char *filename = argv[1];
-  bool is_stdin = strcmp(filename, "-") == 0;
-  if (is_stdin) {
-    filename = "stdin";
-  }
-  char *user_input = read_file(filename, is_stdin);
-  error_init(filename, user_input);
+  const char *indata = read_file(opts->inpath, opts->is_stdin);
+  error_init(opts->inpath, indata);
 
   // Tokenize and parse.
-  Token *token = lex(user_input);
+  Token *token = lex(indata);
   Program *prog = parse(token);
 
   // Assign offsets to local variables.

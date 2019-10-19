@@ -3,11 +3,11 @@
 #include <stdio.h>
 #include "dfcc.h"
 
-static char gColorBlack[]   = { 27, '[', '3', '0', ';', '1', 'm', 0 };
-static char gColorRed[]     = { 27, '[', '3', '1', ';', '1', 'm', 0 };
-static char gColorMagenta[] = { 27, '[', '3', '5', ';', '1', 'm', 0 };
-static char gColorCyan[]    = { 27, '[', '3', '6', ';', '1', 'm', 0 };
-static char gColorReset[]   = { 27, '[', '0', 'm', 0 };
+static const char gColorBlack[]   = { 27, '[', '3', '0', ';', '1', 'm', 0 };
+static const char gColorRed[]     = { 27, '[', '3', '1', ';', '1', 'm', 0 };
+static const char gColorMagenta[] = { 27, '[', '3', '5', ';', '1', 'm', 0 };
+static const char gColorCyan[]    = { 27, '[', '3', '6', ';', '1', 'm', 0 };
+static const char gColorReset[]   = { 27, '[', '0', 'm', 0 };
 
 typedef enum {
   LogLevelNote,
@@ -16,13 +16,13 @@ typedef enum {
 } LogLevel;
 
 typedef struct {
-  char *filename;
-  char *user_input;
+  const char *filename;
+  const char *user_input;
 } ErrorContext;
 
 static ErrorContext *gCtx;
 
-void error_init(char *filename, char *user_input) {
+void error_init(const char *filename, const char *user_input) {
   gCtx = calloc(1, sizeof(ErrorContext));
   gCtx->filename = filename;
   gCtx->user_input = user_input;
@@ -32,22 +32,26 @@ void error_init(char *filename, char *user_input) {
 //
 // foo.c:10: x = y + 1;
 //               ^ <error message here>
-static void verror_at(LogLevel lvl, char *loc, char *fmt, va_list ap) {
+static void verror_at(LogLevel lvl, const char *loc, const char *fmt, va_list ap) {
   // TODO(Kagami): Bound checking.
   // Find a line containing `loc`.
-  char *line = loc;
-  while (gCtx->user_input < line && line[-1] != '\n')
+  const char *line = loc;
+  while (gCtx->user_input < line && line[-1] != '\n') {
     line--;
+  }
 
-  char *end = loc;
-  while (*end != '\n')
+  const char *end = loc;
+  while (*end != '\n') {
     end++;
+  }
 
   // Get a line number.
   int line_num = 1;
-  for (char *p = gCtx->user_input; p < line; p++)
-    if (*p == '\n')
+  for (const char *p = gCtx->user_input; p < line; p++) {
+    if (*p == '\n') {
       line_num++;
+    }
+  }
 
   // Print out the line.
   fprintf(stderr, "\r%s", gColorBlack);
@@ -73,33 +77,37 @@ static void verror_at(LogLevel lvl, char *loc, char *fmt, va_list ap) {
 }
 
 // Reports an error location and exit.
-void error_at(char *loc, char *fmt, ...) {
+void error_at(const char *loc, const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
   verror_at(LogLevelError, loc, fmt, ap);
+  va_end(ap);
   exit(1);
 }
 
 // Reports an error location and exit.
-void error_tok(Token *tok, char *fmt, ...) {
+void error_tok(Token *tok, const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
   verror_at(LogLevelError, tok->str, fmt, ap);
+  va_end(ap);
   exit(1);
 }
 
 // Reports an warning location.
-void warn_tok(Token *tok, char *fmt, ...) {
+void warn_tok(Token *tok, const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
   verror_at(LogLevelWarning, tok->str, fmt, ap);
+  va_end(ap);
 }
 
 // Reports an error and exit.
-void error(char *fmt, ...) {
+void error(const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
   vfprintf(stderr, fmt, ap);
+  va_end(ap);
   fprintf(stderr, "\n");
   exit(1);
 }

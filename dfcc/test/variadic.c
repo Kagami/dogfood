@@ -9,6 +9,8 @@
       return x;
     x += y;
   }
+
+  va_end(ap);
 }*/
 
 /*int add_all3(int x, int y, int z, ...) {
@@ -22,6 +24,8 @@
       return x;
     x += y;
   }
+
+  va_end(ap);
 }*/
 
 int vsprintf_check(char *answer, char *fmt, ...) {
@@ -29,6 +33,7 @@ int vsprintf_check(char *answer, char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
   vsprintf(result, fmt, ap);
+  va_end(ap);
   return strcmp(answer, result);
 }
 

@@ -70,8 +70,8 @@ static ParserContext *gCtx;
 // Token walk helpers
 //
 
-static char *df_strndup(char *s, long n) {
-  char *z = memchr(s, '\0', n);
+static char *df_strndup(const char *s, size_t n) {
+  const char *z = memchr(s, '\0', n);
   if (z) {
     n = z - s;
   }

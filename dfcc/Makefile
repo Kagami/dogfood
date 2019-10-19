@@ -1,4 +1,4 @@
-CFLAGS = -Wall -Werror -pedantic -g -std=c11
+CFLAGS = -Wall -Wpedantic -Werror -g -std=c11
 LDFLAGS = -no-pie
 SRCS = $(wildcard *.c)
 OBJS1 = $(addprefix .tmp1/,$(SRCS:.c=.o))
@@ -34,6 +34,7 @@ fulltest: clean stage2 test
 		| sed 's/INT_MAX/2147483647/g' \
 		| sed 's/\berrno\b/*__errno_location()/g' \
 		| sed 's/\bva_start\b/__builtin_va_start/g' \
+		| sed 's/\bva_end\b//g' \
 		> .tmp2/$<
 	./stage1 .tmp2/$< > .tmp2/$<.s
 	$(CC) $(CFLAGS) -o $@ -c .tmp2/$<.s
@@ -49,6 +50,7 @@ fulltest: clean stage2 test
 		| sed 's/INT_MAX/2147483647/g' \
 		| sed 's/\berrno\b/*__errno_location()/g' \
 		| sed 's/\bva_start\b/__builtin_va_start/g' \
+		| sed 's/\bva_end\b//g' \
 		> .tmp2/$<
 	@./stage1 .tmp2/$< > .tmp2/$<.s
 	@$(CC) $(LDFLAGS) -o $@ .tmp2/$<.s

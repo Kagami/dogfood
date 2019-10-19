@@ -4,16 +4,16 @@
 #include <stdio.h>
 #include "dfcc.h"
 
-static char *gArgreg1[] = {"dil", "sil", "dl", "cl", "r8b", "r9b"};
-static char *gArgreg2[] = {"di", "si", "dx", "cx", "r8w", "r9w"};
-static char *gArgreg4[] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
-static char *gArgreg8[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
+static const char *gArgreg1[] = {"dil", "sil",  "dl",  "cl", "r8b", "r9b"};
+static const char *gArgreg2[] = { "di",  "si",  "dx",  "cx", "r8w", "r9w"};
+static const char *gArgreg4[] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
+static const char *gArgreg8[] = {"rdi", "rsi", "rdx", "rcx", "r8",  "r9"};
 
 typedef struct {
   int labelseq;
   int brkseq;
   int contseq;
-  char *funcname;
+  const char *funcname;
 } GenContext;
 
 static GenContext *gCtx;

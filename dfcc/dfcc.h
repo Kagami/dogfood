@@ -9,11 +9,11 @@ typedef struct Initializer Initializer;
 // error.c
 //
 
-void error_init(char *filename, char *user_input);
-void error(char *fmt, ...);
-void error_at(char *loc, char *fmt, ...);
-void error_tok(Token *tok, char *fmt, ...);
-void warn_tok(Token *tok, char *fmt, ...);
+void error_init(const char *inpath, const char *indata);
+void error(const char *fmt, ...);
+void error_at(const char *loc, const char *fmt, ...);
+void error_tok(Token *tok, const char *fmt, ...);
+void warn_tok(Token *tok, const char *fmt, ...);
 
 //
 // lex.c
@@ -30,18 +30,17 @@ typedef enum {
 
 // Token type
 struct Token {
-  TokenKind kind; // Token kind
-  Token *next;    // Next token
-  long val;       // If kind is TK_NUM, its value
-  Type *ty;       // Used if TK_NUM
-  char *str;      // Token string
-  int len;        // Token length
-
-  char *contents; // String literal contents including terminating '\0'
-  char cont_len;  // string literal length
+  TokenKind kind;  // Token kind
+  Token *next;     // Next token
+  long val;        // If kind is TK_NUM, its value
+  Type *ty;        // Used if TK_NUM
+  const char *str; // Token string
+  int len;         // Token length
+  char *contents;  // String literal contents including terminating '\0'
+  int cont_len;    // string literal length
 };
 
-Token *lex(char *user_input);
+Token *lex(const char *user_input);
 
 //
 // parse.c
@@ -157,11 +156,11 @@ struct Node {
   Member *member;
 
   // Function call
-  char *funcname;
+  const char *funcname;
   Node *args;
 
   // Goto or labeled statement
-  char *label_name;
+  const char *label_name;
 
   // Switch-cases
   Node *case_next;
@@ -187,14 +186,14 @@ struct Initializer {
   long val;
 
   // Reference to another global variable
-  char *label;
+  const char *label;
   long addend;
 };
 
 typedef struct Function Function;
 struct Function {
   Function *next;
-  char *name;
+  const char *name;
   VarList *params;
   bool is_static;
   bool has_varargs;
@@ -246,7 +245,7 @@ struct Member {
   Member *next;
   Type *ty;
   Token *tok; // for error message
-  char *name;
+  const char *name;
   int offset;
 };
 
