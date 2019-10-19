@@ -14,8 +14,10 @@ stage1: $(OBJS1)
 stage2: $(OBJS2)
 	$(CC) $(LDFLAGS) -o $@ $(OBJS2)
 
-test t: $(TESTS)
+test: $(TESTS)
 	@echo -e " \e[32mOK"
+
+fulltest: clean stage2 test
 
 .tmp1/%.o: %.c dfcc.h
 	@mkdir -p .tmp1
@@ -53,6 +55,6 @@ test t: $(TESTS)
 	@$@
 
 clean:
-	rm -rf stage1 stage2 dfcc .tmp1 .tmp2
+	rm -rf stage1 stage2 .tmp1 .tmp2
 
 .PHONY: test $(TSRCS)

@@ -1,4 +1,4 @@
-// TODO(Kagami): Implement va_arg
+// TODO(Kagami): Implement va_arg.
 /*int add_all1(int x, ...) {
   va_list ap;
   va_start(ap, x);

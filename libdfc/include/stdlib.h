@@ -1,6 +1,6 @@
-void *malloc(long size);
-void *calloc(long nmemb, long size);
+void *malloc(size_t size);
+void *calloc(size_t nmemb, size_t size);
 
-long strtol(char *nptr, char **endptr, int base);
+long strtol(const char *nptr, char **endptr, int base);
 
 void exit(int status);

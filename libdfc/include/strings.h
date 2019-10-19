@@ -1,1 +1,1 @@
-int strncasecmp(char *s1, char *s2, long n);
+int strncasecmp(const char *s1, const char *s2, size_t n);
