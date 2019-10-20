@@ -18,14 +18,16 @@ typedef enum {
 typedef struct {
   const char *filename;
   const char *user_input;
+  bool werror;
 } ErrorContext;
 
 static ErrorContext *gCtx;
 
-void error_init(const char *filename, const char *user_input) {
+void error_init(const char *filename, const char *user_input, bool werror) {
   gCtx = calloc(1, sizeof(ErrorContext));
   gCtx->filename = filename;
   gCtx->user_input = user_input;
+  gCtx->werror = werror;
 }
 
 // Reports an error message in the following format.
@@ -98,8 +100,11 @@ void error_tok(Token *tok, const char *fmt, ...) {
 void warn_tok(Token *tok, const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
-  verror_at(LogLevelWarning, tok->str, fmt, ap);
+  verror_at(gCtx->werror ? LogLevelError : LogLevelWarning, tok->str, fmt, ap);
   va_end(ap);
+  if (gCtx->werror) {
+    exit(1);
+  }
 }
 
 // Reports an error and exit.

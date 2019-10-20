@@ -10,7 +10,7 @@ typedef struct Initializer Initializer;
 // error.c
 //
 
-void error_init(const char *inpath, const char *indata);
+void error_init(const char *inpath, const char *indata, bool werror);
 void error(const char *fmt, ...);
 void error_at(const char *loc, const char *fmt, ...);
 void error_tok(Token *tok, const char *fmt, ...);
