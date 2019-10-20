@@ -94,6 +94,7 @@ static const Opts *read_opts(int argc, char **argv) {
       break;
     case 'h':
       usage(NULL);
+      break;
     case 'c':
       opts->compile_only = true;
       break;
@@ -151,7 +152,7 @@ int main(int argc, char **argv) {
   error_init(opts->inpath, indata, opts->werror);
 
   // Tokenize and parse.
-  Token *token = lex(indata);
+  Token *token = cpp(indata);
   Program *prog = parse(token);
 
   // Generate code.

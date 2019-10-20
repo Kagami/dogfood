@@ -1,12 +1,12 @@
 #include <stdlib.h>
 #include "dfcc.h"
 
-Type *gVoidType  = &(Type){ TY_VOID, 1, 1 };
-Type *gBoolType  = &(Type){ TY_BOOL, 1, 1 };
-Type *gCharType  = &(Type){ TY_CHAR, 1, 1 };
+Type *gVoidType  = &(Type){ TY_VOID,  1, 1 };
+Type *gBoolType  = &(Type){ TY_BOOL,  1, 1 };
+Type *gCharType  = &(Type){ TY_CHAR,  1, 1 };
 Type *gShortType = &(Type){ TY_SHORT, 2, 2 };
-Type *gIntType   = &(Type){ TY_INT, 4, 4 };
-Type *gLongType  = &(Type){ TY_LONG, 8, 8 };
+Type *gIntType   = &(Type){ TY_INT,   4, 4 };
+Type *gLongType  = &(Type){ TY_LONG,  8, 8 };
 
 static Type *new_type(TypeKind kind, int size, int align) {
   Type *ty = calloc(1, sizeof(Type));

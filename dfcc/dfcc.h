@@ -17,6 +17,12 @@ void error_tok(Token *tok, const char *fmt, ...);
 void warn_tok(Token *tok, const char *fmt, ...);
 
 //
+// cpp.c
+//
+
+Token *cpp(const char *src);
+
+//
 // lex.c
 //
 
@@ -41,7 +47,7 @@ struct Token {
   int cont_len;    // string literal length
 };
 
-Token *lex(const char *user_input);
+Token *lex_one(const char *src, const char **end, Token *cur);
 
 //
 // parse.c

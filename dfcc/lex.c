@@ -169,61 +169,57 @@ static Token *read_int_literal(Token *cur, const char *start) {
   return tok;
 }
 
-// Tokenize user input.
-Token *lex(const char *user_input) {
-  const char *p = user_input;
-  Token head = { 0 };
-  Token *cur = &head;
+// Read single token from a given input.
+Token *lex_one(const char *p, const char **end, Token *cur) {
   const char *kw;
-
-  while (*p) {
-    // Skip whitespace characters
-    if (isspace(*p)) {
+  // EOF
+  if (!*p) {
+    cur = new_token(TK_EOF, cur, p, 0);
+  // Skip whitespace characters
+  } else if (isspace(*p)) {
+    p++;
+  // Skip line comments
+  } else if (startswith(p, "//")) {
+    p += 2;
+    while (*p != '\n') {
       p++;
-    // Skip line comments
-    } else if (startswith(p, "//")) {
-      p += 2;
-      while (*p != '\n') {
-        p++;
-      }
-    // Skip block comments
-    } else if (startswith(p, "/*")) {
-      char *q = strstr(p + 2, "*/");
-      if (!q) error_at(p, "unclosed block comment");
-      p = q + 2;
-    // String literal
-    } else if (*p == '"') {
-      cur = read_string_literal(cur, p);
-      p += cur->len;
-    // Character literal
-    } else if (*p == '\'') {
-      cur = read_char_literal(cur, p);
-      p += cur->len;
-    // Keywords or multi-letter punctuators
-    } else if ((kw = starts_with_reserved(p))) {
-      int len = strlen(kw);
-      cur = new_token(TK_RESERVED, cur, p, len);
-      p += len;
-    // Identifier
-    } else if (is_ident_start(*p)) {
-      const char *q = p++;
-      while (is_ident(*p)) {
-        p++;
-      }
-      cur = new_token(TK_IDENT, cur, q, p - q);
-    // Single-letter punctuators
-    } else if (ispunct(*p)) {
-      cur = new_token(TK_RESERVED, cur, p++, 1);
-    // Integer literal
-    } else if (isdigit(*p)) {
-      cur = read_int_literal(cur, p);
-      p += cur->len;
-    // Wrong input
-    } else {
-      error_at(p, "invalid token");
     }
+  // Skip block comments
+  } else if (startswith(p, "/*")) {
+    char *q = strstr(p + 2, "*/");
+    if (!q) error_at(p, "unclosed block comment");
+    p = q + 2;
+  // String literal
+  } else if (*p == '"') {
+    cur = read_string_literal(cur, p);
+    p += cur->len;
+  // Character literal
+  } else if (*p == '\'') {
+    cur = read_char_literal(cur, p);
+    p += cur->len;
+  // Keywords or multi-letter punctuators
+  } else if ((kw = starts_with_reserved(p))) {
+    int len = strlen(kw);
+    cur = new_token(TK_RESERVED, cur, p, len);
+    p += len;
+  // Identifier
+  } else if (is_ident_start(*p)) {
+    const char *q = p++;
+    while (is_ident(*p)) {
+      p++;
+    }
+    cur = new_token(TK_IDENT, cur, q, p - q);
+  // Single-letter punctuators
+  } else if (ispunct(*p)) {
+    cur = new_token(TK_RESERVED, cur, p++, 1);
+  // Integer literal
+  } else if (isdigit(*p)) {
+    cur = read_int_literal(cur, p);
+    p += cur->len;
+  // Wrong input
+  } else {
+    error_at(p, "invalid token");
   }
-
-  new_token(TK_EOF, cur, p, 0);
-  return head.next;
+  *end = p;
+  return cur;
 }
