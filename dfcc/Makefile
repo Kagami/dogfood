@@ -36,7 +36,7 @@ fulltest: clean stage2 test
 		| sed 's/\bva_start\b/__builtin_va_start/g' \
 		| sed 's/\bva_end\b//g' \
 		> .tmp2/$<
-	./stage1 .tmp2/$< > .tmp2/$<.s
+	./stage1 -o .tmp2/$<.s .tmp2/$<
 	$(CC) $(CFLAGS) -o $@ -c .tmp2/$<.s
 
 .tmp2/test/%: test/%.c stage1
@@ -52,7 +52,7 @@ fulltest: clean stage2 test
 		| sed 's/\bva_start\b/__builtin_va_start/g' \
 		| sed 's/\bva_end\b//g' \
 		> .tmp2/$<
-	@./stage1 .tmp2/$< > .tmp2/$<.s
+	@./stage1 -o .tmp2/$<.s .tmp2/$<
 	@$(CC) $(LDFLAGS) -o $@ .tmp2/$<.s
 	@$@
 

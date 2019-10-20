@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <stdio.h>
 
 typedef struct Type Type;
 typedef struct Token Token;
@@ -269,4 +270,5 @@ void add_type(Node *node);
 // gen.c
 //
 
-void gen(Program *prog);
+void gen_offsets(Program *prog);
+void gen_prog(Program *prog, const char *outpath, bool is_stdout);

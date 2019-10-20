@@ -5,6 +5,7 @@ extern FILE *stderr;
 FILE *fopen(const char *pathname, const char *mode);
 size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream);
 int feof(FILE *stream);
+int fclose(FILE *stream);
 
 int printf(const char *format, ...);
 int fprintf(FILE *stream, const char *format, ...);

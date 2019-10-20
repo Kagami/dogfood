@@ -1,7 +1,7 @@
-#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <errno.h>
 #include <unistd.h>
 #include "dfcc.h"
 
@@ -60,7 +60,7 @@ static const Opts *read_opts(int argc, char **argv) {
     }
   }
   if (optind != argc - 1 || !opts->outpath) {
-    // usage("output file required");
+    usage("output file required");
   }
   opts->inpath = argv[optind];
   opts->is_stdin = strcmp(opts->inpath, "-") == 0;
@@ -68,13 +68,8 @@ static const Opts *read_opts(int argc, char **argv) {
 }
 
 static const char *read_file(const char *path, bool is_stdin) {
-  FILE *fp;
-  if (is_stdin) {
-    fp = stdin;
-  } else {
-    fp = fopen(path, "r");
-    if (!fp) error("cannot open %s: %s", path, strerror(errno));
-  }
+  FILE *fp = is_stdin ? stdin : fopen(path, "rb");
+  if (!fp) error("cannot open %s: %s", path, strerror(errno));
 
   static const int filemax = 10 * 1024 * 1024;
   char *buf = malloc(filemax);
@@ -101,20 +96,9 @@ int main(int argc, char **argv) {
   Token *token = lex(indata);
   Program *prog = parse(token);
 
-  // Assign offsets to local variables.
-  for (Function *fn = prog->fns; fn; fn = fn->next) {
-    int offset = fn->has_varargs ? 56 : 0;
-    for (VarList *vl = fn->locals; vl; vl = vl->next) {
-      Var *var = vl->var;
-      offset = align_to(offset, var->ty->align);
-      offset += var->ty->size;
-      var->offset = offset;
-    }
-    fn->stack_size = align_to(offset, 8);
-  }
-
-  // Traverse the AST to emit assembly.
-  gen(prog);
+  // Generate code.
+  gen_offsets(prog);
+  gen_prog(prog, opts->outpath, opts->is_stdout);
 
   return 0;
 }
