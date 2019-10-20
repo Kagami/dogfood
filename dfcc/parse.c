@@ -129,6 +129,32 @@ static bool consume_end(void) {
   return false;
 }
 
+// Consume adjacent string literal tokens and return concatenated one.
+static Token *consume_string(void) {
+  Token *start = gCtx->tok;
+  int num_parts = 0;
+  int full_len = 0;
+  while (gCtx->tok->kind == TK_STR) {
+    Token *part = advance();
+    num_parts++;
+    full_len += part->cont_len - 1; // skip '\0'
+  }
+  if (num_parts == 0) return NULL;
+  if (num_parts == 1) return start; // most common case
+
+  gCtx->tok = start;
+  Token *full = calloc(1, sizeof(Token));
+  char *dst = full->contents = malloc(full_len + 1);
+  full->cont_len = full_len + 1;
+  while (gCtx->tok->kind == TK_STR) {
+    Token *part = advance();
+    memcpy(dst, part->contents, part->cont_len - 1);
+    dst += part->cont_len - 1;
+  }
+  *dst = '\0';
+  return full;
+}
+
 // Ensure that the current token is a given string and consume it.
 static void expect(char *s) {
   if (!peek(s)) {
@@ -749,23 +775,17 @@ static Initializer *gvar_initializer(Type *ty) {
 // the linker supports an expression consisting of a label address
 // plus/minus an addend, so (2) is allowed.
 static Initializer *gvar_initializer2(Initializer *cur, Type *ty) {
-  Token *tok = gCtx->tok;
-
-  if (ty->kind == TY_ARRAY && ty->base->kind == TY_CHAR &&
-      gCtx->tok->kind == TK_STR) {
-    gCtx->tok = gCtx->tok->next;
-
+  if (ty->kind == TY_ARRAY && ty->base->kind == TY_CHAR && gCtx->tok->kind == TK_STR) {
+    Token *str = consume_string();
     if (ty->is_incomplete) {
-      ty->size = tok->cont_len;
-      ty->array_len = tok->cont_len;
+      ty->size = str->cont_len;
+      ty->array_len = str->cont_len;
       ty->is_incomplete = false;
     }
-
-    int len = (ty->array_len < tok->cont_len)
-      ? ty->array_len : tok->cont_len;
-
-    for (int i = 0; i < len; i++)
-      cur = new_init_val(cur, 1, tok->contents[i]);
+    const int len = (ty->array_len < str->cont_len) ? ty->array_len : str->cont_len;
+    for (int i = 0; i < len; i++) {
+      cur = new_init_val(cur, 1, str->contents[i]);
+    }
     return new_init_zero(cur, ty->array_len - len);
   }
 
@@ -1489,28 +1509,21 @@ static Node *lvar_initializer(Var *var, Token *tok) {
 //   items on the rhs. For example, `x` in `int x[]={1,2,3}` will have
 //   type `int[3]` because the rhs initializer has three items.
 static Node *lvar_initializer2(Node *cur, Var *var, Type *ty, Designator *desg) {
-  if (ty->kind == TY_ARRAY && ty->base->kind == TY_CHAR &&
-      gCtx->tok->kind == TK_STR) {
-    // Initialize a char array with a string literal.
-    Token *tok = gCtx->tok;
-    gCtx->tok = gCtx->tok->next;
-
+  if (ty->kind == TY_ARRAY && ty->base->kind == TY_CHAR && gCtx->tok->kind == TK_STR) {
+    Token *first_part = gCtx->tok;
+    Token *str = consume_string();
     if (ty->is_incomplete) {
-      ty->size = tok->cont_len;
-      ty->array_len = tok->cont_len;
+      ty->size = str->cont_len;
+      ty->array_len = str->cont_len;
       ty->is_incomplete = false;
     }
-
-    int len = (ty->array_len < tok->cont_len)
-      ? ty->array_len : tok->cont_len;
-
+    const int len = (ty->array_len < str->cont_len) ? ty->array_len : str->cont_len;
     for (int i = 0; i < len; i++) {
       Designator desg2 = {desg, i};
-      Node *rhs = new_num(tok->contents[i], tok);
+      Node *rhs = new_num(str->contents[i], first_part);
       cur->next = new_desg_node(var, &desg2, rhs);
       cur = cur->next;
     }
-
     for (int i = len; i < ty->array_len; i++) {
       Designator desg2 = {desg, i};
       cur = lvar_init_zero(cur, var, ty->base, &desg2);
@@ -1995,21 +2008,23 @@ static Node *primary(void) {
 
   tok = gCtx->tok;
   if (tok->kind == TK_STR) {
-    gCtx->tok = gCtx->tok->next;
-
-    Type *ty = array_of(gCharType, tok->cont_len);
+    Token *str = consume_string();
+    Type *ty = array_of(gCharType, str->cont_len);
     Var *var = new_gvar(new_label(), ty, true, true);
-    var->initializer = gvar_init_string(tok->contents, tok->cont_len);
+    var->initializer = gvar_init_string(str->contents, str->cont_len);
     return new_var_node(var, tok);
   }
 
-  if (tok->kind != TK_NUM)
-    error_tok(tok, "expected expression");
-  gCtx->tok = tok->next;
+  tok = gCtx->tok;
+  if (tok->kind == TK_NUM) {
+    advance();
+    Node *node = new_num(tok->val, tok);
+    node->ty = tok->ty;
+    return node;
+  }
 
-  Node *node = new_num(tok->val, tok);
-  node->ty = tok->ty;
-  return node;
+  error_tok(gCtx->tok, "expected expression");
+  return NULL;
 }
 
 // stmt-expr = "(" "{" stmt stmt* "}" ")"

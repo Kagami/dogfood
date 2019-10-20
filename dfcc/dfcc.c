@@ -24,7 +24,7 @@ static void usage(const char *err_msg) {
   if (!err_msg) {
     fprintf(stderr,
       "\n"
-      /*"options:\n"
+      "options:\n"
       "  -h            show this help message and exit\n"
       "  -o outfile    specify the output file\n"
       "  -fdump-ast    dump AST tree\n"
@@ -34,7 +34,7 @@ static void usage(const char *err_msg) {
       "  -Wall         enable all warnings (default)\n"
       "  -Wpedantic    enable strict ISO C compliance (default)\n"
       "  -Werror       treat warnings as errors\n"
-      "  -g            include debug information\n"*/
+      "  -g            include debug information\n"
     );
   }
   exit(err_msg ? 1 : 0);
