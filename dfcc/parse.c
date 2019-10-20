@@ -70,39 +70,18 @@ static ParserContext *gCtx;
 // Token walk helpers
 //
 
-// Consumes the current token if it matches `op`.
-static Token *consume(char *op) {
-  if (gCtx->tok->kind != TK_RESERVED
-      || strlen(op) != gCtx->tok->len
-      || strncmp(gCtx->tok->str, op, gCtx->tok->len) != 0) {
-    return NULL;
-  }
-  Token *t = gCtx->tok;
+static bool at_eof(void) {
+  return gCtx->tok->kind == TK_EOF;
+}
+
+// Consume the current token and return it.
+static Token *advance(void) {
+  Token *cur = gCtx->tok;
   gCtx->tok = gCtx->tok->next;
-  return t;
+  return cur;
 }
 
-// Consumes the current token if it is an identifier.
-static Token *consume_ident(void) {
-  if (gCtx->tok->kind != TK_IDENT) return NULL;
-  Token *t = gCtx->tok;
-  gCtx->tok = gCtx->tok->next;
-  return t;
-}
-
-// Some types of list can end with an optional "," followed by "}"
-// to allow a trailing comma. This function returns true if it looks
-// like we are at the end of such list.
-static bool consume_end(void) {
-  Token *tok = gCtx->tok;
-  if (consume("}") || (consume(",") && consume("}"))) {
-    return true;
-  }
-  gCtx->tok = tok;
-  return false;
-}
-
-// Returns true if the current token matches a given string.
+// Return current token if it matches a given string.
 static Token *peek(char *s) {
   if (gCtx->tok->kind != TK_RESERVED
       || strlen(s) != gCtx->tok->len
@@ -112,59 +91,67 @@ static Token *peek(char *s) {
   return gCtx->tok;
 }
 
+// Return current token if it is an identifier.
+static Token *peek_ident(void) {
+  if (gCtx->tok->kind != TK_IDENT) return NULL;
+  return gCtx->tok;
+}
+
+// Some types of list can end with an optional "," followed by "}"
+// to allow a trailing comma. This function returns true if it looks
+// like we are at the end of such list.
 static bool peek_end(void) {
   Token *tok = gCtx->tok;
-  bool ret = consume("}") || (consume(",") && consume("}"));
+  bool ret = peek("}") || (peek(",") && advance() && peek("}"));
   gCtx->tok = tok;
   return ret;
 }
 
-// Ensure that the current token is a given string
+// Consume the current token if it matches a given string.
+static Token *consume(char *s) {
+  if (!peek(s)) return NULL;
+  return advance();
+}
+
+// Consume the current token if it is an identifier.
+static Token *consume_ident(void) {
+  if (!peek_ident()) return NULL;
+  return advance();
+}
+
+// Same as `peek_end` but also consume the tokens.
+static bool consume_end(void) {
+  Token *tok = gCtx->tok;
+  if (consume("}") || (consume(",") && consume("}"))) {
+    return true;
+  }
+  gCtx->tok = tok;
+  return false;
+}
+
+// Ensure that the current token is a given string and consume it.
 static void expect(char *s) {
   if (!peek(s)) {
     error_tok(gCtx->tok, "expected \"%s\"", s);
   }
-  gCtx->tok = gCtx->tok->next;
+  advance();
 }
 
-// Ensure that the current token is TK_IDENT.
+// Ensure that the current token is TK_IDENT and consume it.
 static char *expect_ident(void) {
-  if (gCtx->tok->kind != TK_IDENT) {
+  if (!peek_ident()) {
     error_tok(gCtx->tok, "expected an identifier");
   }
   char *s = strndup(gCtx->tok->str, gCtx->tok->len);
-  gCtx->tok = gCtx->tok->next;
+  advance();
   return s;
 }
 
+// Same as `consume_end` but ensure it.
 static void expect_end(void) {
   if (!consume_end()) {
     expect("}");
   }
-}
-
-static Node *assign(void);
-
-static void skip_excess_elements2(void) {
-  for (;;) {
-    if (consume("{")) {
-      skip_excess_elements2();
-    } else {
-      assign();
-    }
-    if (consume_end()) return;
-    expect(",");
-  }
-}
-
-static void skip_excess_elements(void) {
-  expect(",");
-  warn_tok(gCtx->tok, "excess elements in initializer");
-  skip_excess_elements2();
-}
-
-static bool at_eof(void) {
-  return gCtx->tok->kind == TK_EOF;
 }
 
 //
@@ -579,6 +566,24 @@ static Node *primary(void);
 static Node *stmt_expr(Token *tok);
 static Node *func_args(void);
 
+static void skip_excess_elements2(void) {
+  for (;;) {
+    if (consume("{")) {
+      skip_excess_elements2();
+    } else {
+      assign();
+    }
+    if (consume_end()) return;
+    expect(",");
+  }
+}
+
+static void skip_excess_elements(void) {
+  expect(",");
+  warn_tok(gCtx->tok, "excess elements in initializer");
+  skip_excess_elements2();
+}
+
 // Determine whether the next top-level item is a function
 // or a global variable by looking ahead input tokens.
 static bool is_function(void) {
@@ -942,7 +947,7 @@ static Type *basetype(StorageClass *sclass) {
       } else {
         ty = find_typedef(gCtx->tok);
         assert(ty);
-        gCtx->tok = gCtx->tok->next;
+        advance();
       }
 
       counter |= OTHER;
