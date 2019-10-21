@@ -4,6 +4,10 @@
 #include <strings.h>
 #include "dfcc.h"
 
+bool token_match(Token *tok, const char *str) {
+  return strncmp(tok->str, str, tok->len) == 0;
+}
+
 // Create a new token.
 static Token *new_token(TokenKind kind, const char *str, int len) {
   Token *tok = calloc(1, sizeof(Token));
@@ -186,38 +190,54 @@ static Token *read_int_literal(const char *start) {
   return tok;
 }
 
+// Skip all adjacent whitespace/comment sequences and return BOL flag.
+static bool skip_space(const char *p, const char **end) {
+  bool bol = false;
+  bool skipped;
+  do {
+    skipped = false;
+    // Whitespace characters
+    if (isspace(*p)) {
+      skipped = true;
+      do {
+        if (*p == '\n') { bol = true; }
+        p++;
+      } while (isspace(*p));
+    }
+    // Line comments
+    if (startswith(p, "//")) {
+      skipped = true;
+      p += 2;
+      while (*p != '\n') {
+        p++;
+      }
+    }
+    // Block comments; this clears BOL flag
+    if (startswith(p, "/*")) {
+      skipped = true;
+      bol = false;
+      char *q = strstr(p + 2, "*/");
+      if (!q) error_at(p, "unclosed block comment");
+      p = q + 2;
+    }
+  } while (skipped);
+  *end = p;
+  return bol;
+}
+
 // Read single token from the current stream.
 Token *lex_one() {
-  const char *p = stream_peek()->pos;
+  const char *p = stream_pos();
   const char *kw;
   Token *tok;
-  // EOF
-  if (!*p) {
-    tok = new_token(TK_EOF, p, 0);
-  // Newline
-  } else if (*p == '\n') {
-    do {
-      p++;
-    } while (*p == '\n');
-  // Skip whitespace characters
-  } else if (isspace(*p)) {
-    do {
-      p++;
-    } while (isspace(*p));
-  // Skip line comments
-  } else if (startswith(p, "//")) {
-    p += 2;
-    while (*p != '\n') {
-      p++;
-    }
-  // Skip block comments
-  } else if (startswith(p, "/*")) {
-    char *q = strstr(p + 2, "*/");
-    if (!q) error_at(p, "unclosed block comment");
-    p = q + 2;
+
+  bool bol = skip_space(p, &p);
+  if (!*p) return new_token(TK_EOF, p, 0);
+
   // Preprocessing directive
-  } else if (*p == '#') {
+  if (*p == '#' && bol) {
     p++;
+    skip_space(p, &p);
     if (!is_ident_start(*p)) error_at(p, "unknown directive");
     const char *q = p++;
     while (is_ident(*p)) {
@@ -255,6 +275,7 @@ Token *lex_one() {
   } else {
     error_at(p, "invalid token");
   }
-  stream_peek()->pos = p;
+
+  stream_pos_set(p);
   return tok;
 }

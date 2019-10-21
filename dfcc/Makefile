@@ -43,7 +43,6 @@ fulltest: clean stage2 test
 .tmp2/test/%: test/%.c stage1
 	@mkdir -p .tmp2/test
 	@cat ../libdfc/include/*.h test/test.h $< \
-		| grep -v '^#' \
 		| sed 's/\bNULL\b/0/g' \
 		| sed 's/\bva_start\b/__builtin_va_start/g' \
 		| sed 's/\bva_end\b//g' \

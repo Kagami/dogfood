@@ -32,6 +32,8 @@ struct Stream {
 void stream_push(const char *path);
 Stream *stream_pop(void);
 Stream *stream_peek(void);
+const char *stream_pos();
+void stream_pos_set(const char *pos);
 
 //
 // cpp.c
@@ -66,6 +68,7 @@ struct Token {
   Stream *origin;  // Token origin stream
 };
 
+bool token_match(Token *tok, const char *str);
 Token *lex_one();
 
 //

@@ -7,7 +7,26 @@ typedef struct {
 
 static CppContext *gCtx;
 
-static void directive(Token *tok) {
+static void skip_line() {
+  const char *p = stream_pos();
+  while (*p != '\n') {
+    p++;
+  }
+  stream_pos_set(p);
+}
+
+static void read_directive(Token *tok) {
+  if (token_match(tok, "define")) {
+    skip_line();
+  } else if (token_match(tok, "if")) {
+    skip_line();
+  } else if (token_match(tok, "endif")) {
+    skip_line();
+  } else if (token_match(tok, "include")) {
+    skip_line();
+  } else {
+    error_tok(tok, "unknown directive");
+  }
 }
 
 Token *cpp() {
@@ -21,7 +40,7 @@ Token *cpp() {
   for (;;) {
     tok = lex_one();
     if (tok->kind == TK_DIRECTIVE) {
-      directive(tok);
+      read_directive(tok);
       continue;
     }
     if (tok->kind == TK_EOF) {

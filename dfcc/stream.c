@@ -55,3 +55,11 @@ Stream *stream_pop() {
 Stream *stream_peek() {
   return gStream;
 }
+
+const char *stream_pos() {
+  return stream_peek()->pos;
+}
+
+void stream_pos_set(const char *pos) {
+  stream_peek()->pos = pos;
+}
