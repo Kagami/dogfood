@@ -3,6 +3,7 @@
 
 typedef struct Type Type;
 typedef struct Token Token;
+typedef struct Stream Stream;
 typedef struct Member Member;
 typedef struct Initializer Initializer;
 
@@ -10,17 +11,34 @@ typedef struct Initializer Initializer;
 // error.c
 //
 
-void error_init(const char *inpath, const char *indata, bool werror);
+void error_init(bool warn_is_error);
 void error(const char *fmt, ...);
 void error_at(const char *loc, const char *fmt, ...);
 void error_tok(Token *tok, const char *fmt, ...);
+void warn_at(const char *loc, const char *fmt, ...);
 void warn_tok(Token *tok, const char *fmt, ...);
+
+//
+// stream.c
+//
+
+struct Stream {
+  const char *path;
+  FILE* fp;
+  const char *contents;
+  const char *pos;
+  Stream *prev;
+};
+
+void stream_push(const char *path);
+Stream *stream_pop(void);
+Stream *stream_back(void);
 
 //
 // cpp.c
 //
 
-Token *cpp(const char *src);
+Token *cpp(void);
 
 //
 // lex.c
@@ -45,9 +63,10 @@ struct Token {
   int len;         // Token length
   char *contents;  // String literal contents including terminating '\0'
   int cont_len;    // string literal length
+  Stream *origin;  // Token origin stream
 };
 
-Token *lex_one(const char *src, const char **end, Token *cur);
+Token *lex_one(Token *cur);
 
 //
 // parse.c
@@ -218,6 +237,13 @@ typedef struct {
 Program *parse(Token *token);
 
 //
+// gen.c
+//
+
+void gen_offsets(Program *prog);
+void gen_prog(Program *prog, const char *outpath);
+
+//
 // type.c
 //
 
@@ -273,8 +299,15 @@ Type *struct_type(void);
 void add_type(Node *node);
 
 //
-// gen.c
+// map.c
 //
 
-void gen_offsets(Program *prog);
-void gen_prog(Program *prog, const char *outpath, bool is_stdout);
+typedef struct {
+  char **key;
+  void **val;
+  int size;
+} Map;
+
+Map *new_map(void);
+void *map_get(Map *m, char *key);
+void map_put(Map *m, char *key, void *val);

@@ -2,9 +2,9 @@
 #include <string.h>
 #include <stdio.h>
 
-static const char gColorBlack[] = { 27, '[', '3', '0', ';', '1', 'm', 0 };
-static const char gColorRed[]   = { 27, '[', '3', '1', ';', '1', 'm', 0 };
-static const char gColorReset[] = { 27, '[', '0', 'm', 0 };
+static const char *gColorBlack = "\33[30;1m";
+static const char *gColorRed   = "\33[31;1m";
+static const char *gColorReset = "\33[0m";
 
 // TODO(Kagami): Infer "desc" via preprocessor.
 static void expect(long expected, long actual, const char *desc) {

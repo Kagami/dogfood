@@ -10,6 +10,7 @@ static Token *new_token(TokenKind kind, Token *cur, const char *str, int len) {
   tok->kind = kind;
   tok->str = str;
   tok->len = len;
+  tok->origin = stream_back();
   cur->next = tok;
   return tok;
 }
@@ -58,19 +59,34 @@ static const char *starts_with_reserved(const char *p) {
   return NULL;
 }
 
-static char get_escape_char(char c) {
+static char read_oct_char(char c, const char *p, const char **end) {
+  for (int i = 0; i < 2; i++) {
+    int d = *p - '0';
+    if (d < 0 || d > 7) break;
+    c = (c << 3) | d;
+    p++;
+  }
+  *end = p;
+  return c;
+}
+
+static char read_escape_char(const char *p, const char **end) {
+  char c = *p++;
+  *end = p;
   switch (c) {
+  case '\'': case '"': case '?': case '\\': return c;
   case 'a': return '\a';
   case 'b': return '\b';
-  case 't': return '\t';
-  case 'n': return '\n';
-  case 'v': return '\v';
   case 'f': return '\f';
+  case 'n': return '\n';
   case 'r': return '\r';
-  case 'e': return 27;
-  case '0': return 0;
-  default: return c;
+  case 't': return '\t';
+  case 'v': return '\v';
   }
+  int d = c - '0';
+  if (d >= 0 && d <= 7) return read_oct_char(d, p, end);
+  warn_at(p - 1, "unknown escape sequence");
+  return c;
 }
 
 static Token *read_string_literal(Token *cur, const char *start) {
@@ -88,7 +104,7 @@ static Token *read_string_literal(Token *cur, const char *start) {
 
     if (*p == '\\') {
       p++;
-      buf[len++] = get_escape_char(*p++);
+      buf[len++] = read_escape_char(p, &p);
     } else {
       buf[len++] = *p++;
     }
@@ -110,7 +126,7 @@ static Token *read_char_literal(Token *cur, const char *start) {
   char c;
   if (*p == '\\') {
     p++;
-    c = get_escape_char(*p++);
+    c = read_escape_char(p, &p);
   } else {
     c = *p++;
   }
@@ -169,8 +185,9 @@ static Token *read_int_literal(Token *cur, const char *start) {
   return tok;
 }
 
-// Read single token from a given input.
-Token *lex_one(const char *p, const char **end, Token *cur) {
+// Read single token from the current stream.
+Token *lex_one(Token *cur) {
+  const char *p = stream_back()->pos;
   const char *kw;
   // EOF
   if (!*p) {
@@ -220,6 +237,6 @@ Token *lex_one(const char *p, const char **end, Token *cur) {
   } else {
     error_at(p, "invalid token");
   }
-  *end = p;
+  stream_back()->pos = p;
   return cur;
 }

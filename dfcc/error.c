@@ -3,11 +3,11 @@
 #include <stdio.h>
 #include "dfcc.h"
 
-static const char gColorBlack[]   = { 27, '[', '3', '0', ';', '1', 'm', 0 };
-static const char gColorRed[]     = { 27, '[', '3', '1', ';', '1', 'm', 0 };
-static const char gColorMagenta[] = { 27, '[', '3', '5', ';', '1', 'm', 0 };
-static const char gColorCyan[]    = { 27, '[', '3', '6', ';', '1', 'm', 0 };
-static const char gColorReset[]   = { 27, '[', '0', 'm', 0 };
+static const char *gColorBlack   = "\33[30;1m";
+static const char *gColorRed     = "\33[31;1m";
+static const char *gColorMagenta = "\33[35;1m";
+static const char *gColorCyan    = "\33[36;1m";
+static const char *gColorReset   = "\33[0m";
 
 typedef enum {
   LogLevelNote,
@@ -16,40 +16,36 @@ typedef enum {
 } LogLevel;
 
 typedef struct {
-  const char *filename;
-  const char *user_input;
-  bool werror;
+  bool warn_is_error;
 } ErrorContext;
 
 static ErrorContext *gCtx;
 
-void error_init(const char *filename, const char *user_input, bool werror) {
+void error_init(bool warn_is_error) {
   gCtx = calloc(1, sizeof(ErrorContext));
-  gCtx->filename = filename;
-  gCtx->user_input = user_input;
-  gCtx->werror = werror;
+  gCtx->warn_is_error = warn_is_error;
 }
 
 // Reports an error message in the following format.
 //
 // foo.c:10: x = y + 1;
 //               ^ <error message here>
-static void verror_at(LogLevel lvl, const char *loc, const char *fmt, va_list ap) {
+static void verror_at(LogLevel lvl, Stream *origin, const char *loc, const char *fmt, va_list ap) {
   // TODO(Kagami): Bound checking.
   // Find a line containing `loc`.
   const char *line = loc;
-  while (gCtx->user_input < line && line[-1] != '\n') {
+  while (origin->contents < line && line[-1] != '\n') {
     line--;
   }
 
   const char *end = loc;
-  while (*end != '\n') {
+  while (*end != '\0' && *end != '\n') {
     end++;
   }
 
   // Get a line number.
   int line_num = 1;
-  for (const char *p = gCtx->user_input; p < line; p++) {
+  for (const char *p = origin->contents; p < line; p++) {
     if (*p == '\n') {
       line_num++;
     }
@@ -57,7 +53,7 @@ static void verror_at(LogLevel lvl, const char *loc, const char *fmt, va_list ap
 
   // Print out the line.
   fprintf(stderr, "\r%s", gColorBlack);
-  int indent = fprintf(stderr, "%s:%d: ", gCtx->filename, line_num);
+  int indent = fprintf(stderr, "%s:%d: ", origin->path, line_num);
   fprintf(stderr, "%s%.*s\n", gColorReset, (int)(end - line), line);
 
   // Show the error message.
@@ -82,27 +78,40 @@ static void verror_at(LogLevel lvl, const char *loc, const char *fmt, va_list ap
 void error_at(const char *loc, const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
-  verror_at(LogLevelError, loc, fmt, ap);
+  verror_at(LogLevelError, stream_back(), loc, fmt, ap);
   va_end(ap);
   exit(1);
 }
 
-// Reports an error location and exit.
+// Reports an error token and exit.
 void error_tok(Token *tok, const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
-  verror_at(LogLevelError, tok->str, fmt, ap);
+  verror_at(LogLevelError, tok->origin, tok->str, fmt, ap);
   va_end(ap);
   exit(1);
 }
 
-// Reports an warning location.
-void warn_tok(Token *tok, const char *fmt, ...) {
+// Reports a warning location.
+void warn_at(const char *loc, const char *fmt, ...) {
+  const int lvl = gCtx->warn_is_error ? LogLevelError : LogLevelWarning;
   va_list ap;
   va_start(ap, fmt);
-  verror_at(gCtx->werror ? LogLevelError : LogLevelWarning, tok->str, fmt, ap);
+  verror_at(lvl, stream_back(), loc, fmt, ap);
   va_end(ap);
-  if (gCtx->werror) {
+  if (gCtx->warn_is_error) {
+    exit(1);
+  }
+}
+
+// Reports a warning token.
+void warn_tok(Token *tok, const char *fmt, ...) {
+  const int lvl = gCtx->warn_is_error ? LogLevelError : LogLevelWarning;
+  va_list ap;
+  va_start(ap, fmt);
+  verror_at(lvl, tok->origin, tok->str, fmt, ap);
+  va_end(ap);
+  if (gCtx->warn_is_error) {
     exit(1);
   }
 }

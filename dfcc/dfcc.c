@@ -1,7 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <errno.h>
 #include <unistd.h>
 #include "dfcc.h"
 
@@ -13,7 +12,7 @@ typedef struct {
   bool dump_ast;
   bool dump_asm;
   bool compile_only;
-  bool werror;
+  bool warn_is_error;
 } Opts;
 
 static void usage(const char *err_msg) {
@@ -62,7 +61,7 @@ static void read_warning_arg(Opts *opts, char *arg) {
   } else if (strcmp(arg, "pedantic") == 0) {
     /* default */
   } else if (strcmp(arg, "error") == 0) {
-    opts->werror = true;
+    opts->warn_is_error = true;
   } else {
     usage("unknown -W option value");
   }
@@ -116,48 +115,23 @@ static const Opts *read_opts(int argc, char **argv) {
   }
   opts->inpath = argv[optind];
   opts->is_stdin = strcmp(opts->inpath, "-") == 0;
-  if (opts->is_stdin) {
-    opts->inpath = "stdin";
-  }
   opts->is_stdout = strcmp(opts->outpath, "-") == 0;
-  if (opts->is_stdout) {
-    opts->outpath = "stdout";
-  }
   return opts;
-}
-
-static const char *read_file(const char *path, bool is_stdin) {
-  FILE *fp = is_stdin ? stdin : fopen(path, "rb");
-  if (!fp) error("cannot open %s: %s", path, strerror(errno));
-
-  static const int filemax = 10 * 1024 * 1024;
-  char *buf = malloc(filemax);
-  int size = fread(buf, 1, filemax - 2, fp);
-  if (!feof(fp)) error("%s: file too large", path);
-
-  // Make sure that the string ends with "\n\0".
-  if (size == 0 || buf[size - 1] != '\n') {
-    buf[size++] = '\n';
-  }
-  buf[size] = '\0';
-  return buf;
 }
 
 int main(int argc, char **argv) {
   // Parse opts.
   const Opts *opts = read_opts(argc, argv);
-
-  // Prepare input.
-  const char *indata = read_file(opts->inpath, opts->is_stdin);
-  error_init(opts->inpath, indata, opts->werror);
+  error_init(opts->warn_is_error);
+  stream_push(opts->is_stdin ? NULL : opts->inpath);
 
   // Tokenize and parse.
-  Token *token = cpp(indata);
+  Token *token = cpp();
   Program *prog = parse(token);
 
   // Generate code.
   gen_offsets(prog);
-  gen_prog(prog, opts->outpath, opts->is_stdout);
+  gen_prog(prog, opts->is_stdout ? NULL : opts->outpath);
 
   return 0;
 }
