@@ -4,14 +4,13 @@
 #include <strings.h>
 #include "dfcc.h"
 
-// Create a new token and add it as the next token of `cur`.
-static Token *new_token(TokenKind kind, Token *cur, const char *str, int len) {
+// Create a new token.
+static Token *new_token(TokenKind kind, const char *str, int len) {
   Token *tok = calloc(1, sizeof(Token));
   tok->kind = kind;
   tok->str = str;
   tok->len = len;
-  tok->origin = stream_back();
-  cur->next = tok;
+  tok->origin = stream_peek();
   return tok;
 }
 
@@ -27,7 +26,7 @@ static bool is_ident(char c) {
   return is_ident_start(c) || isdigit(c);
 }
 
-static const char *starts_with_reserved(const char *p) {
+static const char *read_reserved(const char *p) {
   // Keyword
   static const char *kws[] = {
     "return", "if", "else", "while", "for", "int",
@@ -53,7 +52,9 @@ static const char *starts_with_reserved(const char *p) {
   };
   static const int op_len = sizeof(ops) / sizeof(*ops);
   for (int i = 0; i < op_len; i++) {
-    if (startswith(p, ops[i])) return ops[i];
+    if (startswith(p, ops[i])) {
+      return ops[i];
+    }
   }
 
   return NULL;
@@ -89,7 +90,7 @@ static char read_escape_char(const char *p, const char **end) {
   return c;
 }
 
-static Token *read_string_literal(Token *cur, const char *start) {
+static Token *read_string_literal(const char *start) {
   const char *p = start + 1;
   char buf[1024];
   int len = 0;
@@ -110,7 +111,7 @@ static Token *read_string_literal(Token *cur, const char *start) {
     }
   }
 
-  Token *tok = new_token(TK_STR, cur, start, p - start + 1);
+  Token *tok = new_token(TK_STR, start, p - start + 1);
   tok->contents = malloc(len + 1);
   memcpy(tok->contents, buf, len);
   tok->contents[len] = '\0';
@@ -118,7 +119,7 @@ static Token *read_string_literal(Token *cur, const char *start) {
   return tok;
 }
 
-static Token *read_char_literal(Token *cur, const char *start) {
+static Token *read_char_literal(const char *start) {
   const char *p = start + 1;
   if (*p == '\0')
     error_at(start, "unclosed char literal");
@@ -135,13 +136,13 @@ static Token *read_char_literal(Token *cur, const char *start) {
     error_at(start, "char literal too long");
   p++;
 
-  Token *tok = new_token(TK_NUM, cur, start, p - start);
+  Token *tok = new_token(TK_NUM, start, p - start);
   tok->val = c;
   tok->ty = gIntType;
   return tok;
 }
 
-static Token *read_int_literal(Token *cur, const char *start) {
+static Token *read_int_literal(const char *start) {
   const char *p = start;
 
   // Read a binary, octal, decimal or hexadecimal number.
@@ -179,22 +180,30 @@ static Token *read_int_literal(Token *cur, const char *start) {
     error_at(p, "invalid digit");
   }
 
-  Token *tok = new_token(TK_NUM, cur, start, p - start);
+  Token *tok = new_token(TK_NUM, start, p - start);
   tok->val = val;
   tok->ty = ty;
   return tok;
 }
 
 // Read single token from the current stream.
-Token *lex_one(Token *cur) {
-  const char *p = stream_back()->pos;
+Token *lex_one() {
+  const char *p = stream_peek()->pos;
   const char *kw;
+  Token *tok;
   // EOF
   if (!*p) {
-    cur = new_token(TK_EOF, cur, p, 0);
+    tok = new_token(TK_EOF, p, 0);
+  // Newline
+  } else if (*p == '\n') {
+    do {
+      p++;
+    } while (*p == '\n');
   // Skip whitespace characters
   } else if (isspace(*p)) {
-    p++;
+    do {
+      p++;
+    } while (isspace(*p));
   // Skip line comments
   } else if (startswith(p, "//")) {
     p += 2;
@@ -206,18 +215,27 @@ Token *lex_one(Token *cur) {
     char *q = strstr(p + 2, "*/");
     if (!q) error_at(p, "unclosed block comment");
     p = q + 2;
+  // Preprocessing directive
+  } else if (*p == '#') {
+    p++;
+    if (!is_ident_start(*p)) error_at(p, "unknown directive");
+    const char *q = p++;
+    while (is_ident(*p)) {
+      p++;
+    }
+    tok = new_token(TK_DIRECTIVE, q, p - q);
   // String literal
   } else if (*p == '"') {
-    cur = read_string_literal(cur, p);
-    p += cur->len;
+    tok = read_string_literal(p);
+    p += tok->len;
   // Character literal
   } else if (*p == '\'') {
-    cur = read_char_literal(cur, p);
-    p += cur->len;
+    tok = read_char_literal(p);
+    p += tok->len;
   // Keywords or multi-letter punctuators
-  } else if ((kw = starts_with_reserved(p))) {
+  } else if ((kw = read_reserved(p))) {
     int len = strlen(kw);
-    cur = new_token(TK_RESERVED, cur, p, len);
+    tok = new_token(TK_RESERVED, p, len);
     p += len;
   // Identifier
   } else if (is_ident_start(*p)) {
@@ -225,18 +243,18 @@ Token *lex_one(Token *cur) {
     while (is_ident(*p)) {
       p++;
     }
-    cur = new_token(TK_IDENT, cur, q, p - q);
+    tok = new_token(TK_IDENT, q, p - q);
   // Single-letter punctuators
   } else if (ispunct(*p)) {
-    cur = new_token(TK_RESERVED, cur, p++, 1);
+    tok = new_token(TK_RESERVED, p++, 1);
   // Integer literal
   } else if (isdigit(*p)) {
-    cur = read_int_literal(cur, p);
-    p += cur->len;
+    tok = read_int_literal(p);
+    p += tok->len;
   // Wrong input
   } else {
     error_at(p, "invalid token");
   }
-  stream_back()->pos = p;
-  return cur;
+  stream_peek()->pos = p;
+  return tok;
 }

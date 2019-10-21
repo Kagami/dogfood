@@ -4,7 +4,11 @@ extern FILE *stdout;
 extern FILE *stderr;
 FILE *fopen(const char *pathname, const char *mode);
 size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream);
+int fseek(FILE *stream, long offset, int whence);
+long ftell(FILE *stream);
+void rewind(FILE *stream);
 int feof(FILE *stream);
+int ferror(FILE *stream);
 int fclose(FILE *stream);
 
 int printf(const char *format, ...);

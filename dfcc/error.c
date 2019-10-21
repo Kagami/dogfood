@@ -53,7 +53,7 @@ static void verror_at(LogLevel lvl, Stream *origin, const char *loc, const char 
 
   // Print out the line.
   fprintf(stderr, "\r%s", gColorBlack);
-  int indent = fprintf(stderr, "%s:%d: ", origin->path, line_num);
+  int indent = fprintf(stderr, "%s:%d: ", origin->name, line_num);
   fprintf(stderr, "%s%.*s\n", gColorReset, (int)(end - line), line);
 
   // Show the error message.
@@ -78,7 +78,7 @@ static void verror_at(LogLevel lvl, Stream *origin, const char *loc, const char 
 void error_at(const char *loc, const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
-  verror_at(LogLevelError, stream_back(), loc, fmt, ap);
+  verror_at(LogLevelError, stream_peek(), loc, fmt, ap);
   va_end(ap);
   exit(1);
 }
@@ -97,7 +97,7 @@ void warn_at(const char *loc, const char *fmt, ...) {
   const int lvl = gCtx->warn_is_error ? LogLevelError : LogLevelWarning;
   va_list ap;
   va_start(ap, fmt);
-  verror_at(lvl, stream_back(), loc, fmt, ap);
+  verror_at(lvl, stream_peek(), loc, fmt, ap);
   va_end(ap);
   if (gCtx->warn_is_error) {
     exit(1);

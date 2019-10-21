@@ -23,8 +23,7 @@ void warn_tok(Token *tok, const char *fmt, ...);
 //
 
 struct Stream {
-  const char *path;
-  FILE* fp;
+  const char *name;
   const char *contents;
   const char *pos;
   Stream *prev;
@@ -32,7 +31,7 @@ struct Stream {
 
 void stream_push(const char *path);
 Stream *stream_pop(void);
-Stream *stream_back(void);
+Stream *stream_peek(void);
 
 //
 // cpp.c
@@ -46,11 +45,12 @@ Token *cpp(void);
 
 // Token
 typedef enum {
-  TK_RESERVED, // Keywords or punctuators
-  TK_IDENT,    // Identifiers
-  TK_STR,      // String literals
-  TK_NUM,      // Integer literals
-  TK_EOF,      // End-of-file markers
+  TK_DIRECTIVE, // Preprocessing directive
+  TK_RESERVED,  // Keywords or punctuators
+  TK_IDENT,     // Identifiers
+  TK_STR,       // String literals
+  TK_NUM,       // Integer literals
+  TK_EOF,       // End-of-file markers
 } TokenKind;
 
 // Token type
@@ -66,7 +66,7 @@ struct Token {
   Stream *origin;  // Token origin stream
 };
 
-Token *lex_one(Token *cur);
+Token *lex_one();
 
 //
 // parse.c
