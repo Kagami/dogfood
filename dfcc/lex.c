@@ -10,7 +10,7 @@ Token *new_token(TokenKind kind, const char *str, int len) {
   tok->kind = kind;
   tok->str = str;
   tok->len = len;
-  tok->origin = stream_peek();
+  tok->origin = stream_head();
   return tok;
 }
 
@@ -20,12 +20,13 @@ Token *token_copy(Token *orig) {
   return tok;
 }
 
-Token *token_deepcopy(Token *orig) {
+Token *token_deepcopy(Token *orig, Token **last) {
   Token *head = token_copy(orig);
   Token *tok = head;
   while (tok->next) {
     tok = tok->next = token_copy(tok->next);
   }
+  *last = tok;
   return head;
 }
 
@@ -241,7 +242,37 @@ static void skip_space(const char *p, const char **end) {
   *end = p;
 }
 
-// Read single token from the current stream.
+// Consume header name from the current stream.
+const char *lex_header_name() {
+  const char *p = stream_pos();
+  skip_space(p, &p);
+  char close;
+  if (*p == '"') {
+    close = '"';
+  } else if (*p == '<') {
+    close = '>';
+  } else {
+    // Don't support macro-expanded path currently.
+    error_at(p, "header name expected");
+  }
+  const char *q = ++p;
+  while (*p != close) {
+    if (*p == '\n') error_at(p, "premature end of header name");
+    p++;
+  }
+  p++;
+  const int name_len = p - q - 2;
+  if (name_len == 0) error_at(q, "empty header name");
+  skip_space(p, &p);
+  stream_setpos(p);
+
+  Token *tok = lex_one();
+  if (tok->kind != TK_NEWLINE) error_tok(tok, "newline expected");
+
+  return strndup(q, name_len);
+}
+
+// Consume single token from the current stream.
 Token *lex_one() {
   Token *tok;
   const char *kw;

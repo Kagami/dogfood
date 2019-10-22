@@ -25,6 +25,7 @@ static void usage(const char *err_msg) {
       "\n"
       "options:\n"
       "  -h            show this help message and exit\n"
+      "  -I path       add include path\n"
       "  -o outfile    specify the output file\n"
       "  -fdump-ast    dump AST tree\n"
       "  -S            emit assembly\n"
@@ -70,9 +71,15 @@ static void read_warning_arg(Opts *opts, char *arg) {
 static const Opts *read_opts(int argc, char **argv) {
   Opts *opts = calloc(1, sizeof(Opts));
   for (;;) {
-    const int opt = getopt(argc, argv, ":ho:fScs:W:g");
+    const int opt = getopt(argc, argv, ":hI:o:fScs:W:g");
     if (opt == -1) break;
     switch (opt) {
+    case 'h':
+      usage(NULL);
+      break;
+    case 'I':
+      cpp_add_include_path(optarg);
+      break;
     case 'o':
       opts->outpath = optarg;
       break;
@@ -90,9 +97,6 @@ static const Opts *read_opts(int argc, char **argv) {
       break;
     case 'W':
       read_warning_arg(opts, optarg);
-      break;
-    case 'h':
-      usage(NULL);
       break;
     case 'c':
       opts->compile_only = true;
@@ -121,6 +125,7 @@ static const Opts *read_opts(int argc, char **argv) {
 
 int main(int argc, char **argv) {
   // Parse opts.
+  cpp_init();
   const Opts *opts = read_opts(argc, argv);
   error_init(opts->warn_is_error);
   stream_push(opts->is_stdin ? NULL : opts->inpath);

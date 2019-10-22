@@ -707,7 +707,7 @@ void gen_offsets(Program *prog) {
 // Generate code for the entire program.
 void gen_prog(Program *prog, const char *outpath) {
   FILE *outfp = outpath ? fopen(outpath, "wb") : stdout;
-  if (!outfp) error("cannot open %s: %s", outpath, strerror(errno));
+  if (!outfp) error("cannot open %s (%s)", outpath, strerror(errno));
 
   gCtx = calloc(1, sizeof(GenContext));
   gCtx->outfp = outfp;

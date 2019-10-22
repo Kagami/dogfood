@@ -158,7 +158,7 @@ static Token *consume_string(void) {
 // Ensure that the current token is a given string and consume it.
 static void expect(char *s) {
   if (!peek(s)) {
-    error_tok(gCtx->tok, "expected \"%s\"", s);
+    error_tok(gCtx->tok, "\"%s\" expected", s);
   }
   advance();
 }
@@ -166,7 +166,7 @@ static void expect(char *s) {
 // Ensure that the current token is TK_IDENT and consume it.
 static char *expect_ident(void) {
   if (!peek_ident()) {
-    error_tok(gCtx->tok, "expected an identifier");
+    error_tok(gCtx->tok, "identifier expected");
   }
   char *s = strndup(gCtx->tok->str, gCtx->tok->len);
   advance();
@@ -2023,7 +2023,7 @@ static Node *primary(void) {
     return node;
   }
 
-  error_tok(gCtx->tok, "expected expression");
+  error_tok(gCtx->tok, "expression expected");
   return NULL;
 }
 

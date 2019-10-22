@@ -11,7 +11,7 @@ static const char *read_file(const char *path, const char *name) {
   long fsize;
   if (path) {
     fp = fopen(path, "rb");
-    if (!fp) error("cannot open %s: %s", name, strerror(errno));
+    if (!fp) error("cannot open %s (%s)", name, strerror(errno));
     // This is UB per C standard but OK per POSIX
     fseek(fp, 0, SEEK_END);
     fsize = ftell(fp);
@@ -25,8 +25,8 @@ static const char *read_file(const char *path, const char *name) {
 
   char *buf = malloc(fsize + 2);
   size_t rsize = fread(buf, 1, fsize + 1, fp); // one more to reach EOF
-  if (ferror(fp)) error("cannot read %s: %s", name, strerror(errno));
-  if (!feof(fp)) error("cannot read %s: file too large", name);
+  if (ferror(fp)) error("cannot read %s (%s)", name, strerror(errno));
+  if (!feof(fp)) error("cannot read %s (file too large)", name);
   if (path) {
     fclose(fp);
   }
@@ -52,19 +52,19 @@ Stream *stream_pop() {
   return gStream;
 }
 
-Stream *stream_peek() {
+Stream *stream_head() {
   return gStream;
 }
 
 const char *stream_pos() {
-  return stream_peek()->pos;
+  return stream_head()->pos;
 }
 
 void stream_setpos(const char *pos) {
-  stream_peek()->pos = pos;
+  stream_head()->pos = pos;
 }
 
 bool stream_bol() {
-  Stream *s = stream_peek();
+  Stream *s = stream_head();
   return s->pos == s->contents || s->pos[-1] == '\n';
 }

@@ -78,7 +78,7 @@ static void verror_at(LogLevel lvl, Stream *origin, const char *loc, const char 
 void error_at(const char *loc, const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
-  verror_at(LogLevelError, stream_peek(), loc, fmt, ap);
+  verror_at(LogLevelError, stream_head(), loc, fmt, ap);
   va_end(ap);
   exit(1);
 }
@@ -97,7 +97,7 @@ void warn_at(const char *loc, const char *fmt, ...) {
   const int lvl = gCtx->warn_is_error ? LogLevelError : LogLevelWarning;
   va_list ap;
   va_start(ap, fmt);
-  verror_at(lvl, stream_peek(), loc, fmt, ap);
+  verror_at(lvl, stream_head(), loc, fmt, ap);
   va_end(ap);
   if (gCtx->warn_is_error) {
     exit(1);
@@ -120,8 +120,9 @@ void warn_tok(Token *tok, const char *fmt, ...) {
 void error(const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
+  fprintf(stderr, "%sfatal error: %s", gColorRed, gColorReset);
   vfprintf(stderr, fmt, ap);
-  va_end(ap);
   fprintf(stderr, "\n");
+  va_end(ap);
   exit(1);
 }

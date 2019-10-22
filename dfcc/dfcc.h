@@ -22,6 +22,8 @@ void warn_tok(Token *tok, const char *fmt, ...);
 // cpp.c
 //
 
+void cpp_init(void);
+void cpp_add_include_path(const char *path);
 Token *cpp(void);
 
 //
@@ -54,9 +56,10 @@ struct Token {
 
 Token *new_token(TokenKind kind, const char *str, int len);
 Token *token_copy(Token *tok);
-Token *token_deepcopy(Token *tok);
+Token *token_deepcopy(Token *tok, Token **last);
 bool token_match(Token *tok, const char *str);
-Token *lex_one();
+const char *lex_header_name(void);
+Token *lex_one(void);
 
 //
 // parse.c
@@ -301,7 +304,7 @@ struct Stream {
 
 void stream_push(const char *path);
 Stream *stream_pop(void);
-Stream *stream_peek(void);
+Stream *stream_head(void);
 const char *stream_pos();
 void stream_setpos(const char *pos);
 bool stream_bol(void);
