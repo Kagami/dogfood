@@ -63,3 +63,8 @@ const char *stream_pos() {
 void stream_pos_set(const char *pos) {
   stream_peek()->pos = pos;
 }
+
+bool stream_at_bol() {
+  Stream *s = stream_peek();
+  return s->pos == s->contents || s->pos[-1] == '\n';
+}

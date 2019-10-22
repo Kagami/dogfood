@@ -19,23 +19,6 @@ void warn_at(const char *loc, const char *fmt, ...);
 void warn_tok(Token *tok, const char *fmt, ...);
 
 //
-// stream.c
-//
-
-struct Stream {
-  const char *name;
-  const char *contents;
-  const char *pos;
-  Stream *prev;
-};
-
-void stream_push(const char *path);
-Stream *stream_pop(void);
-Stream *stream_peek(void);
-const char *stream_pos();
-void stream_pos_set(const char *pos);
-
-//
 // cpp.c
 //
 
@@ -53,6 +36,7 @@ typedef enum {
   TK_STR,       // String literals
   TK_NUM,       // Integer literals
   TK_EOF,       // End-of-file markers
+  TK_NEWLINE,   // End-of-line markers
 } TokenKind;
 
 // Token type
@@ -68,6 +52,9 @@ struct Token {
   Stream *origin;  // Token origin stream
 };
 
+Token *new_token(TokenKind kind, const char *str, int len);
+Token *token_copy(Token *tok);
+Token *token_deepcopy(Token *tok);
 bool token_match(Token *tok, const char *str);
 Token *lex_one();
 
@@ -302,15 +289,33 @@ Type *struct_type(void);
 void add_type(Node *node);
 
 //
+// stream.c
+//
+
+struct Stream {
+  const char *name;
+  const char *contents;
+  const char *pos;
+  Stream *prev;
+};
+
+void stream_push(const char *path);
+Stream *stream_pop(void);
+Stream *stream_peek(void);
+const char *stream_pos();
+void stream_pos_set(const char *pos);
+bool stream_at_bol(void);
+
+//
 // map.c
 //
 
 typedef struct {
-  char **key;
-  void **val;
+  const char **key;
+  const void **val;
   int size;
 } Map;
 
 Map *new_map(void);
-void *map_get(Map *m, char *key);
-void map_put(Map *m, char *key, void *val);
+const void *map_get_byview(Map *m, const char *key, size_t key_len);
+void map_put(Map *m, const char *key, const void *val);

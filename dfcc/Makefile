@@ -26,13 +26,6 @@ fulltest: clean stage2 test
 .tmp2/%.o: %.c stage1
 	@mkdir -p .tmp2
 	@cat ../libdfc/include/*.h dfcc.h $< \
-		| grep -v '^#' \
-		| sed 's/\bbool\b/_Bool/g' \
-		| sed 's/\btrue\b/1/g' \
-		| sed 's/\bfalse\b/0/g' \
-		| sed 's/\bNULL\b/0/g' \
-		| sed 's/INT_MAX/2147483647/g' \
-		| sed 's/SEEK_END/2/g' \
 		| sed 's/\berrno\b/*__errno_location()/g' \
 		| sed 's/\bva_start\b/__builtin_va_start/g' \
 		| sed 's/\bva_end\b//g' \
@@ -43,7 +36,6 @@ fulltest: clean stage2 test
 .tmp2/test/%: test/%.c stage1
 	@mkdir -p .tmp2/test
 	@cat ../libdfc/include/*.h test/test.h $< \
-		| sed 's/\bNULL\b/0/g' \
 		| sed 's/\bva_start\b/__builtin_va_start/g' \
 		| sed 's/\bva_end\b//g' \
 		> .tmp2/$<

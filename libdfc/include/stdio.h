@@ -1,3 +1,6 @@
+#define NULL 0
+#define SEEK_END 2
+
 typedef struct FILE FILE;
 extern FILE *stdin;
 extern FILE *stdout;

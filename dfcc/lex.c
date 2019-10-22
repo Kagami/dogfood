@@ -4,18 +4,34 @@
 #include <strings.h>
 #include "dfcc.h"
 
-bool token_match(Token *tok, const char *str) {
-  return strncmp(tok->str, str, tok->len) == 0;
-}
-
 // Create a new token.
-static Token *new_token(TokenKind kind, const char *str, int len) {
+Token *new_token(TokenKind kind, const char *str, int len) {
   Token *tok = calloc(1, sizeof(Token));
   tok->kind = kind;
   tok->str = str;
   tok->len = len;
   tok->origin = stream_peek();
   return tok;
+}
+
+Token *token_copy(Token *orig) {
+  Token *tok = malloc(sizeof(Token));
+  memcpy(tok, orig, sizeof(Token));
+  return tok;
+}
+
+Token *token_deepcopy(Token *orig) {
+  Token *head = token_copy(orig);
+  Token *tok = head;
+  while (tok->next) {
+    tok = tok->next = token_copy(tok->next);
+  }
+  return head;
+}
+
+bool token_match(Token *tok, const char *str) {
+  return strlen(str) == tok->len &&
+         strncmp(tok->str, str, tok->len) == 0;
 }
 
 static bool startswith(const char *p, const char *q) {
@@ -190,9 +206,8 @@ static Token *read_int_literal(const char *start) {
   return tok;
 }
 
-// Skip all adjacent whitespace/comment sequences and return BOL flag.
-static bool skip_space(const char *p, const char **end) {
-  bool bol = false;
+// Skip adjacent whitespace/comment sequences, but stop at newline.
+static void skip_space(const char *p, const char **end) {
   bool skipped;
   do {
     skipped = false;
@@ -200,7 +215,10 @@ static bool skip_space(const char *p, const char **end) {
     if (isspace(*p)) {
       skipped = true;
       do {
-        if (*p == '\n') { bol = true; }
+        if (*p == '\n') {
+          *end = p;
+          return;
+        }
         p++;
       } while (isspace(*p));
     }
@@ -212,30 +230,33 @@ static bool skip_space(const char *p, const char **end) {
         p++;
       }
     }
-    // Block comments; this clears BOL flag
+    // Block comments
     if (startswith(p, "/*")) {
       skipped = true;
-      bol = false;
       char *q = strstr(p + 2, "*/");
       if (!q) error_at(p, "unclosed block comment");
       p = q + 2;
     }
   } while (skipped);
   *end = p;
-  return bol;
 }
 
 // Read single token from the current stream.
 Token *lex_one() {
-  const char *p = stream_pos();
-  const char *kw;
   Token *tok;
+  const char *kw;
+  const char *p = stream_pos();
+  skip_space(p, &p);
 
-  bool bol = skip_space(p, &p);
-  if (!*p) return new_token(TK_EOF, p, 0);
-
+  // EOF
+  if (!*p) {
+    tok = new_token(TK_EOF, p, 0);
+  // Newline
+  } else if (*p == '\n') {
+    tok = new_token(TK_NEWLINE, p, 1);
+    p++;
   // Preprocessing directive
-  if (*p == '#' && bol) {
+  } else if (*p == '#' && stream_at_bol()) {
     p++;
     skip_space(p, &p);
     if (!is_ident_start(*p)) error_at(p, "unknown directive");
