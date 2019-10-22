@@ -25,20 +25,13 @@ fulltest: clean stage2 test
 
 .tmp2/%.o: %.c stage1
 	@mkdir -p .tmp2
-	@cat ../libdfc/include/*.h dfcc.h $< \
-		| sed 's/\berrno\b/*__errno_location()/g' \
-		| sed 's/\bva_start\b/__builtin_va_start/g' \
-		| sed 's/\bva_end\b//g' \
-		> .tmp2/$<
+	@cat ../libdfc/include/*.h dfcc.h $< > .tmp2/$<
 	./stage1 -o .tmp2/$<.s .tmp2/$<
 	$(CC) $(CFLAGS) -o $@ -c .tmp2/$<.s
 
 .tmp2/test/%: test/%.c stage1
 	@mkdir -p .tmp2/test
-	@cat ../libdfc/include/*.h test/test.h $< \
-		| sed 's/\bva_start\b/__builtin_va_start/g' \
-		| sed 's/\bva_end\b//g' \
-		> .tmp2/$<
+	@cat ../libdfc/include/*.h test/test.h $< > .tmp2/$<
 	@./stage1 -o .tmp2/$<.s .tmp2/$<
 	@$(CC) $(LDFLAGS) -o $@ .tmp2/$<.s
 	@$@

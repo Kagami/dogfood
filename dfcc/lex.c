@@ -256,7 +256,7 @@ Token *lex_one() {
     tok = new_token(TK_NEWLINE, p, 1);
     p++;
   // Preprocessing directive
-  } else if (*p == '#' && stream_at_bol()) {
+  } else if (*p == '#' && stream_bol()) {
     p++;
     skip_space(p, &p);
     if (!is_ident_start(*p)) error_at(p, "unknown directive");
@@ -297,6 +297,6 @@ Token *lex_one() {
     error_at(p, "invalid token");
   }
 
-  stream_pos_set(p);
+  stream_setpos(p);
   return tok;
 }

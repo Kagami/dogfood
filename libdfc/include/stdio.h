@@ -1,4 +1,4 @@
-#define NULL 0
+#define NULL ((void*)0)
 #define SEEK_END 2
 
 typedef struct FILE FILE;

@@ -14,14 +14,14 @@ static uint32_t fnv_hash(const char *s, size_t key_len) {
 
 Map *new_map() {
   Map *m = calloc(1, sizeof(Map));
-  m->size = 100;
+  m->size = 128;
   m->key = calloc(m->size, sizeof(char*));
   m->val = calloc(m->size, sizeof(void*));
   return m;
 }
 
 // TODO(Kagami): Store len for m->key?
-const void *map_get_byview(Map *m, const char *key, size_t key_len) {
+const void *map_getbyview(Map *m, const char *key, size_t key_len) {
   const int mask = m->size - 1;
   int i = fnv_hash(key, key_len) & mask;
   for (; m->key[i] != NULL; i = (i + 1) & mask) {

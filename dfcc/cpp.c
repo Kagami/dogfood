@@ -31,7 +31,7 @@ static void skip_line() {
   while (*p != '\n') {
     p++;
   }
-  stream_pos_set(p);
+  stream_setpos(p);
 }
 
 static Token *read_ident() {
@@ -84,7 +84,7 @@ static Token *insert_macro(Token *prev, const Macro *m) {
   }
 
   // Token chain
-  prev->next = token_deepcopy(m->last);
+  prev->next = token_deepcopy(m->head);
   Token *last = prev->next;
   while (last->next != NULL) {
     last = last->next;
@@ -105,7 +105,7 @@ Token *cpp() {
       continue;
     }
     if (tok->kind == TK_IDENT) {
-      const Macro *m = map_get_byview(gCtx->macros, tok->str, tok->len);
+      const Macro *m = map_getbyview(gCtx->macros, tok->str, tok->len);
       if (m) {
         prev = insert_macro(prev, m);
         continue;

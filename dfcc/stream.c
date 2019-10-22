@@ -60,11 +60,11 @@ const char *stream_pos() {
   return stream_peek()->pos;
 }
 
-void stream_pos_set(const char *pos) {
+void stream_setpos(const char *pos) {
   stream_peek()->pos = pos;
 }
 
-bool stream_at_bol() {
+bool stream_bol() {
   Stream *s = stream_peek();
   return s->pos == s->contents || s->pos[-1] == '\n';
 }

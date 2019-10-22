@@ -1,4 +1,4 @@
-#define NULL 0
+#define NULL ((void*)0)
 
 void *malloc(size_t size);
 void *calloc(size_t nmemb, size_t size);

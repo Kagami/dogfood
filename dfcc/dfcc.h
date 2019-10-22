@@ -303,8 +303,8 @@ void stream_push(const char *path);
 Stream *stream_pop(void);
 Stream *stream_peek(void);
 const char *stream_pos();
-void stream_pos_set(const char *pos);
-bool stream_at_bol(void);
+void stream_setpos(const char *pos);
+bool stream_bol(void);
 
 //
 // map.c
@@ -313,9 +313,9 @@ bool stream_at_bol(void);
 typedef struct {
   const char **key;
   const void **val;
-  int size;
+  size_t size;
 } Map;
 
 Map *new_map(void);
-const void *map_get_byview(Map *m, const char *key, size_t key_len);
+const void *map_getbyview(Map *m, const char *key, size_t key_len);
 void map_put(Map *m, const char *key, const void *val);

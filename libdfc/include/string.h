@@ -1,4 +1,4 @@
-#define NULL 0
+#define NULL ((void*)0)
 
 size_t strlen(const char *s);
 int strcmp(const char *s1, const char *s2);

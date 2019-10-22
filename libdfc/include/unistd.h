@@ -1,4 +1,4 @@
-#define NULL 0
+#define NULL ((void*)0)
 
 #if _POSIX_C_SOURCE >= 2
 int getopt(int argc, char * const argv[], const char *optstring);

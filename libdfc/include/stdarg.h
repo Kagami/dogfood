@@ -6,3 +6,6 @@ typedef struct {
 } va_list[1];
 
 void __builtin_va_start(va_list ap, void *last);
+
+#define va_start __builtin_va_start
+#define va_end
