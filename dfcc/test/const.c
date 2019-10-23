@@ -5,9 +5,9 @@ void test() {
   const unsigned long b = 2;
   expect(1, a == b, "a == b");
 
-  char*const c = 'a';
+  char*const c = "a";
   int d = 97;
-  expect(1, c == d, "c == d");
+  expect(1, *c == d, "c == d");
 
   int e = 1;
   int*const f = (int*const)&e;

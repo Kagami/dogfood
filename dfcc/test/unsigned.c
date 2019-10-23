@@ -5,28 +5,15 @@ void test() {
   unsigned b = 2;
   expect(1, a != b, "a != b");
 
-  expect(1, sizeof(char), "sizeof(char)");
-  expect(1, sizeof(signed char), "sizeof(signed char)");
-  expect(1, sizeof(signed char signed), "sizeof(signed char signed)");
-
-  expect(2, sizeof(short), "sizeof(short)");
-  expect(2, sizeof(int short), "sizeof(int short)");
-  expect(2, sizeof(short int), "sizeof(short int)");
-  expect(2, sizeof(signed short), "sizeof(signed short)");
-  expect(2, sizeof(int short signed), "sizeof(int short signed)");
-
-  expect(4, sizeof(int), "sizeof(int)");
-  expect(4, sizeof(signed int), "sizeof(signed int)");
-  expect(4, sizeof(signed), "sizeof(signed)");
-  expect(4, sizeof(signed signed), "sizeof(signed signed)");
-
-  expect(8, sizeof(long), "sizeof(long)");
-  expect(8, sizeof(signed long), "sizeof(signed long)");
-  expect(8, sizeof(signed long int), "sizeof(signed long int)");
-
-  expect(8, sizeof(long long), "sizeof(long long)");
-  expect(8, sizeof(signed long long), "sizeof(signed long long)");
-  expect(8, sizeof(signed long long int), "sizeof(signed long long int)");
+  expect(1, sizeof(unsigned char), "sizeof(unsigned char)");
+  expect(2, sizeof(unsigned short), "sizeof(unsigned short)");
+  expect(2, sizeof(int short unsigned), "sizeof(int short unsigned)");
+  expect(4, sizeof(unsigned int), "sizeof(unsigned int)");
+  expect(4, sizeof(unsigned), "sizeof(unsigned)");
+  expect(8, sizeof(unsigned long), "sizeof(unsigned long)");
+  expect(8, sizeof(unsigned long int), "sizeof(unsigned long int)");
+  expect(8, sizeof(unsigned long long), "sizeof(unsigned long long)");
+  expect(8, sizeof(unsigned long long int), "sizeof(unsigned long long int)");
 
   expect(4, sizeof(0), "sizeof(0)");
   expect(8, sizeof(0UL), "sizeof(0UL)");

@@ -46,5 +46,5 @@ void test() {
   // expect(6, add_all3(1,2,3,0), "add_all3(1,2,3,0)");
   // expect(5, add_all3(1,2,3,-1,0), "add_all3(1,2,3,-1,0)");
 
-  expect(0, vsprintf_check("123 456", "123 %d", 456));
+  expect(0, vsprintf_check("123 456", "123 %d", 456), "");
 }
