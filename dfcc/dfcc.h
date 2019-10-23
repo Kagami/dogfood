@@ -22,8 +22,7 @@ void warn_tok(Token *tok, const char *fmt, ...);
 // cpp.c
 //
 
-void cpp_init(void);
-void cpp_add_include_path(const char *path);
+void cpp_idir(const char *dir);
 Token *cpp(void);
 
 //
@@ -58,7 +57,7 @@ Token *new_token(TokenKind kind, const char *str, int len);
 Token *token_copy(Token *tok);
 Token *token_deepcopy(Token *tok, Token **last);
 bool token_match(Token *tok, const char *str);
-const char *lex_header_name(void);
+Token *lex_headername(bool *is_angle);
 Token *lex_one(void);
 
 //
@@ -296,7 +295,8 @@ void add_type(Node *node);
 //
 
 struct Stream {
-  const char *name;
+  const char *name; // human-readable
+  const char *path; // NULL = stdin
   const char *contents;
   const char *pos;
   Stream *prev;
@@ -305,9 +305,10 @@ struct Stream {
 void stream_push(const char *path);
 Stream *stream_pop(void);
 Stream *stream_head(void);
-const char *stream_pos();
+const char *stream_path(void);
+const char *stream_pos(void);
 void stream_setpos(const char *pos);
-bool stream_bol(void);
+bool stream_atbol(void);
 
 //
 // map.c
@@ -320,5 +321,6 @@ typedef struct {
 } Map;
 
 Map *new_map(void);
+const void *map_get(Map *m, const char *key);
 const void *map_getbyview(Map *m, const char *key, size_t key_len);
 void map_put(Map *m, const char *key, const void *val);

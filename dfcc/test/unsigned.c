@@ -1,3 +1,5 @@
+#include "test.h"
+
 void test() {
   unsigned int a = 1;
   unsigned b = 2;

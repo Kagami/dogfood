@@ -133,9 +133,7 @@ static Token *read_string_literal(const char *start) {
   }
 
   Token *tok = new_token(TK_STR, start, p - start + 1);
-  tok->contents = malloc(len + 1);
-  memcpy(tok->contents, buf, len);
-  tok->contents[len] = '\0';
+  tok->contents = strndup(buf, len);
   tok->cont_len = len + 1;
   return tok;
 }
@@ -243,14 +241,16 @@ static void skip_space(const char *p, const char **end) {
 }
 
 // Consume header name from the current stream.
-const char *lex_header_name() {
+Token *lex_headername(bool *is_angle) {
   const char *p = stream_pos();
   skip_space(p, &p);
   char close;
-  if (*p == '"') {
-    close = '"';
-  } else if (*p == '<') {
+  if (*p == '<') {
     close = '>';
+    *is_angle = true;
+  } else if (*p == '"') {
+    close = '"';
+    *is_angle = false;
   } else {
     // Don't support macro-expanded path currently.
     error_at(p, "header name expected");
@@ -261,7 +261,7 @@ const char *lex_header_name() {
     p++;
   }
   p++;
-  const int name_len = p - q - 2;
+  const int name_len = p - q - 1;
   if (name_len == 0) error_at(q, "empty header name");
   skip_space(p, &p);
   stream_setpos(p);
@@ -269,7 +269,10 @@ const char *lex_header_name() {
   Token *tok = lex_one();
   if (tok->kind != TK_NEWLINE) error_tok(tok, "newline expected");
 
-  return strndup(q, name_len);
+  Token *htok = new_token(TK_STR, q, name_len);
+  htok->contents = strndup(q, name_len);
+  htok->cont_len = name_len + 1;
+  return htok;
 }
 
 // Consume single token from the current stream.
@@ -287,7 +290,7 @@ Token *lex_one() {
     tok = new_token(TK_NEWLINE, p, 1);
     p++;
   // Preprocessing directive
-  } else if (*p == '#' && stream_bol()) {
+  } else if (*p == '#' && stream_atbol()) {
     p++;
     skip_space(p, &p);
     if (!is_ident_start(*p)) error_at(p, "unknown directive");

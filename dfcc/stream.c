@@ -1,10 +1,18 @@
+#include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 #include "dfcc.h"
 
-static Stream *gStream;
+typedef struct {
+  Stream *head;
+  // Cache all opened streams, we don't need to read them again.
+  // Technically with include guards this shouldn't happen but some code
+  // might miss them.
+  Map *cache;
+} StreamContext;
+
+static StreamContext *gCtx;
 
 static const char *read_file(const char *path, const char *name) {
   FILE *fp;
@@ -39,21 +47,38 @@ static const char *read_file(const char *path, const char *name) {
   return buf;
 }
 
+static void stream_init() {
+  gCtx = calloc(1, sizeof(StreamContext));
+  gCtx->cache = new_map();
+}
+
 void stream_push(const char *path) {
+  if (!gCtx) { stream_init(); }
   Stream *s = calloc(1, sizeof(Stream));
+  s->path = path;
   s->name = path ? path : "stdin";
-  s->pos = s->contents = read_file(path, s->name);
-  s->prev = gStream;
-  gStream = s;
+  const Stream *cached = map_get(gCtx->cache, s->name);
+  if (cached) {
+    s->pos = s->contents = cached->contents;
+  } else {
+    s->pos = s->contents = read_file(path, s->name);
+    map_put(gCtx->cache, s->name, s);
+  }
+  s->prev = gCtx->head;
+  gCtx->head = s;
 }
 
 Stream *stream_pop() {
-  gStream = gStream->prev;
-  return gStream;
+  gCtx->head = gCtx->head->prev;
+  return gCtx->head;
 }
 
 Stream *stream_head() {
-  return gStream;
+  return gCtx->head;
+}
+
+const char *stream_path() {
+  return stream_head()->path;
 }
 
 const char *stream_pos() {
@@ -64,7 +89,7 @@ void stream_setpos(const char *pos) {
   stream_head()->pos = pos;
 }
 
-bool stream_bol() {
+bool stream_atbol() {
   Stream *s = stream_head();
   return s->pos == s->contents || s->pos[-1] == '\n';
 }

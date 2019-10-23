@@ -25,14 +25,12 @@ fulltest: clean stage2 test
 
 .tmp2/%.o: %.c stage1
 	@mkdir -p .tmp2
-	@cat ../libdfc/include/*.h dfcc.h $< > .tmp2/$<
-	./stage1 -o .tmp2/$<.s .tmp2/$<
+	./stage1 -I../libdfc/include -o .tmp2/$<.s $<
 	$(CC) $(CFLAGS) -o $@ -c .tmp2/$<.s
 
 .tmp2/test/%: test/%.c stage1
 	@mkdir -p .tmp2/test
-	@cat ../libdfc/include/*.h test/test.h $< > .tmp2/$<
-	@./stage1 -o .tmp2/$<.s .tmp2/$<
+	@./stage1 -I../libdfc/include -o .tmp2/$<.s $<
 	@$(CC) $(LDFLAGS) -o $@ .tmp2/$<.s
 	@$@
 

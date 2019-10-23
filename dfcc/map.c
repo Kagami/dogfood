@@ -33,6 +33,10 @@ const void *map_getbyview(Map *m, const char *key, size_t key_len) {
   return NULL;
 }
 
+const void *map_get(Map *m, const char *key) {
+  return map_getbyview(m, key, strlen(key));
+}
+
 // FIXME(Kagami): Realloc.
 void map_put(Map *m, const char *key, const void *val) {
   const int mask = m->size - 1;

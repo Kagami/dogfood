@@ -1,6 +1,6 @@
-#include <stdlib.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "dfcc.h"
 
 static const char *gColorBlack   = "\33[30;1m";

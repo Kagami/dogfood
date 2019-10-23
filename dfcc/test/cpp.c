@@ -1,3 +1,5 @@
+#include "test.h"
+
 #define A 1
 
   /* test */ #define B 2

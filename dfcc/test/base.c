@@ -1,3 +1,5 @@
+#include "test.h"
+
 // This is a line comment.
 
 /*

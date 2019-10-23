@@ -1,3 +1,5 @@
+#include "test.h"
+
 void test() {
   const int a = 2;
   const unsigned long b = 2;

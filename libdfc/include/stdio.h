@@ -1,6 +1,10 @@
-#define NULL ((void*)0)
-#define SEEK_END 2
+#include <stddef.h>
 
+#define __NEED_va_list
+#include <stdarg.h>
+#undef __NEED_va_list
+
+#define SEEK_END 2
 typedef struct FILE FILE;
 extern FILE *stdin;
 extern FILE *stdout;
@@ -17,6 +21,7 @@ int fclose(FILE *stream);
 int printf(const char *format, ...);
 int fprintf(FILE *stream, const char *format, ...);
 int sprintf(char *str, const char *format, ...);
+
 int vprintf(const char *format, va_list ap);
 int vfprintf(FILE *stream, const char *format, va_list ap);
 int vsprintf(char *str, const char *format, va_list ap);

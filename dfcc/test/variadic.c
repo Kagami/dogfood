@@ -1,3 +1,5 @@
+#include "test.h"
+
 // TODO(Kagami): Implement va_arg.
 /*int add_all1(int x, ...) {
   va_list ap;

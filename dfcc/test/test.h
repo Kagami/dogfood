@@ -1,6 +1,6 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 static const char *gColorBlack = "\33[30;1m";
 static const char *gColorRed   = "\33[31;1m";
