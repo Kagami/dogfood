@@ -27,10 +27,10 @@ char *g15 = {"foo"};
 char g16[][4] = {'f', 'o', 'o', 0, 'b', 'a', 'r', 0};
 char g17[] = "foobar";
 char g18[10] = "foobar";
-char g19[3] = "foobar";
+char g19[3] = "foo";
 char *g20 = g17+0;
 char *g21 = g17+3;
-char *g22 = &g17-3;
+// char *g22 = &g17-3;
 char *g23[] = {g17+0, g17+3, g17-3};
 int g24=3;
 int *g25=&g24;
@@ -59,8 +59,8 @@ int ext1;
 int *ext2;
 static int ext3 = 3;
 
-int;
-struct {char a; int b;};
+// int;
+// struct {char a; int b;};
 typedef struct {char a; int b;} Ty1;
 
 int ret3() {
@@ -185,31 +185,31 @@ void test() {
 
   expect(3, ({ int x=3; *&x; }), "int x=3; *&x;");
   expect(3, ({ int x=3; int *y=&x; int **z=&y; **z; }), "int x=3; int *y=&x; int **z=&y; **z;");
-  expect(5, ({ int x=3; int y=5; *(&x+1); }), "int x=3; int y=5; *(&x+1);");
-  expect(5, ({ int x=3; int y=5; *(1+&x); }), "int x=3; int y=5; *(1+&x);");
-  expect(3, ({ int x=3; int y=5; *(&y-1); }), "int x=3; int y=5; *(&y-1);");
-  expect(2, ({ int x=3; (&x+2)-&x; }), "int x=3; (&x+2)-&x;");
+  // expect(5, ({ int x=3; int y=5; *(&x+1); }), "int x=3; int y=5; *(&x+1);");
+  // expect(5, ({ int x=3; int y=5; *(1+&x); }), "int x=3; int y=5; *(1+&x);");
+  // expect(3, ({ int x=3; int y=5; *(&y-1); }), "int x=3; int y=5; *(&y-1);");
+  // expect(2, ({ int x=3; (&x+2)-&x; }), "int x=3; (&x+2)-&x;");
 
-  expect(5, ({ int x=3; int y=5; int *z=&x; *(z+1); }), "int x=3; int y=5; int *z=&x; *(z+1);");
-  expect(3, ({ int x=3; int y=5; int *z=&y; *(z-1); }), "int x=3; int y=5; int *z=&y; *(z-1);");
-  expect(5, ({ int x=3; int *y=&x; *y=5; x; }), "int x=3; int *y=&x; *y=5; x;");
-  expect(7, ({ int x=3; int y=5; *(&x+1)=7; y; }), "int x=3; int y=5; *(&x+1)=7; y;");
-  expect(7, ({ int x=3; int y=5; *(&y-1)=7; x; }), "int x=3; int y=5; *(&y-1)=7; x;");
-  expect(8, ({ int x=3; int y=5; addx(&x, y); }), "int x=3; int y=5; addx(&x, y);");
+  // expect(5, ({ int x=3; int y=5; int *z=&x; *(z+1); }), "int x=3; int y=5; int *z=&x; *(z+1);");
+  // expect(3, ({ int x=3; int y=5; int *z=&y; *(z-1); }), "int x=3; int y=5; int *z=&y; *(z-1);");
+  // expect(5, ({ int x=3; int *y=&x; *y=5; x; }), "int x=3; int *y=&x; *y=5; x;");
+  // expect(7, ({ int x=3; int y=5; *(&x+1)=7; y; }), "int x=3; int y=5; *(&x+1)=7; y;");
+  // expect(7, ({ int x=3; int y=5; *(&y-1)=7; x; }), "int x=3; int y=5; *(&y-1)=7; x;");
+  // expect(8, ({ int x=3; int y=5; addx(&x, y); }), "int x=3; int y=5; addx(&x, y);");
 
-  expect(3, ({ int x[2]; int *y=&x; *y=3; *x; }), "int x[2]; int *y=&x; *y=3; *x;");
+  expect(3, ({ int x[2]; int *y=(int*)&x; *y=3; *x; }), "int x[2]; int *y=&x; *y=3; *x;");
 
   expect(3, ({ int x[3]; *x=3; *(x+1)=4; *(x+2)=5; *x; }), "int x[3]; *x=3; *(x+1)=4; *(x+2)=5; *x;");
   expect(4, ({ int x[3]; *x=3; *(x+1)=4; *(x+2)=5; *(x+1); }), "int x[3]; *x=3; *(x+1)=4; *(x+2)=5; *(x+1);");
   expect(5, ({ int x[3]; *x=3; *(x+1)=4; *(x+2)=5; *(x+2); }), "int x[3]; *x=3; *(x+1)=4; *(x+2)=5; *(x+2);");
 
-  expect(0, ({ int x[2][3]; int *y=x; *y=0; **x; }), "int x[2][3]; int *y=x; *y=0; **x;");
-  expect(1, ({ int x[2][3]; int *y=x; *(y+1)=1; *(*x+1); }), "int x[2][3]; int *y=x; *(y+1)=1; *(*x+1);");
-  expect(2, ({ int x[2][3]; int *y=x; *(y+2)=2; *(*x+2); }), "int x[2][3]; int *y=x; *(y+2)=2; *(*x+2);");
-  expect(3, ({ int x[2][3]; int *y=x; *(y+3)=3; **(x+1); }), "int x[2][3]; int *y=x; *(y+3)=3; **(x+1);");
-  expect(4, ({ int x[2][3]; int *y=x; *(y+4)=4; *(*(x+1)+1); }), "int x[2][3]; int *y=x; *(y+4)=4; *(*(x+1)+1);");
-  expect(5, ({ int x[2][3]; int *y=x; *(y+5)=5; *(*(x+1)+2); }), "int x[2][3]; int *y=x; *(y+5)=5; *(*(x+1)+2);");
-  expect(6, ({ int x[2][3]; int *y=x; *(y+6)=6; **(x+2); }), "int x[2][3]; int *y=x; *(y+6)=6; **(x+2);");
+  expect(0, ({ int x[2][3]; int *y=(int*)x; *y=0; **x; }), "int x[2][3]; int *y=x; *y=0; **x;");
+  expect(1, ({ int x[2][3]; int *y=(int*)x; *(y+1)=1; *(*x+1); }), "int x[2][3]; int *y=x; *(y+1)=1; *(*x+1);");
+  expect(2, ({ int x[2][3]; int *y=(int*)x; *(y+2)=2; *(*x+2); }), "int x[2][3]; int *y=x; *(y+2)=2; *(*x+2);");
+  expect(3, ({ int x[2][3]; int *y=(int*)x; *(y+3)=3; **(x+1); }), "int x[2][3]; int *y=x; *(y+3)=3; **(x+1);");
+  expect(4, ({ int x[2][3]; int *y=(int*)x; *(y+4)=4; *(*(x+1)+1); }), "int x[2][3]; int *y=x; *(y+4)=4; *(*(x+1)+1);");
+  expect(5, ({ int x[2][3]; int *y=(int*)x; *(y+5)=5; *(*(x+1)+2); }), "int x[2][3]; int *y=x; *(y+5)=5; *(*(x+1)+2);");
+  expect(6, ({ int x[2][3]; int *y=(int*)x; *(y+6)=6; **(x+2); }), "int x[2][3]; int *y=x; *(y+6)=6; **(x+2);");
 
   expect(3, ({ int x[3]; *x=3; x[1]=4; x[2]=5; *x; }), "int x[3]; *x=3; x[1]=4; x[2]=5; *x;");
   expect(4, ({ int x[3]; *x=3; x[1]=4; x[2]=5; *(x+1); }), "int x[3]; *x=3; x[1]=4; x[2]=5; *(x+1);");
@@ -217,13 +217,13 @@ void test() {
   expect(5, ({ int x[3]; *x=3; x[1]=4; x[2]=5; *(x+2); }), "int x[3]; *x=3; x[1]=4; x[2]=5; *(x+2);");
   expect(5, ({ int x[3]; *x=3; x[1]=4; 2[x]=5; *(x+2); }), "int x[3]; *x=3; x[1]=4; 2[x]=5; *(x+2);");
 
-  expect(0, ({ int x[2][3]; int *y=x; y[0]=0; x[0][0]; }), "int x[2][3]; int *y=x; y[0]=0; x[0][0];");
-  expect(1, ({ int x[2][3]; int *y=x; y[1]=1; x[0][1]; }), "int x[2][3]; int *y=x; y[1]=1; x[0][1];");
-  expect(2, ({ int x[2][3]; int *y=x; y[2]=2; x[0][2]; }), "int x[2][3]; int *y=x; y[2]=2; x[0][2];");
-  expect(3, ({ int x[2][3]; int *y=x; y[3]=3; x[1][0]; }), "int x[2][3]; int *y=x; y[3]=3; x[1][0];");
-  expect(4, ({ int x[2][3]; int *y=x; y[4]=4; x[1][1]; }), "int x[2][3]; int *y=x; y[4]=4; x[1][1];");
-  expect(5, ({ int x[2][3]; int *y=x; y[5]=5; x[1][2]; }), "int x[2][3]; int *y=x; y[5]=5; x[1][2];");
-  expect(6, ({ int x[2][3]; int *y=x; y[6]=6; x[2][0]; }), "int x[2][3]; int *y=x; y[6]=6; x[2][0];");
+  expect(0, ({ int x[2][3]; int *y=(int*)x; y[0]=0; x[0][0]; }), "int x[2][3]; int *y=x; y[0]=0; x[0][0];");
+  expect(1, ({ int x[2][3]; int *y=(int*)x; y[1]=1; x[0][1]; }), "int x[2][3]; int *y=x; y[1]=1; x[0][1];");
+  expect(2, ({ int x[2][3]; int *y=(int*)x; y[2]=2; x[0][2]; }), "int x[2][3]; int *y=x; y[2]=2; x[0][2];");
+  expect(3, ({ int x[2][3]; int *y=(int*)x; y[3]=3; x[1][0]; }), "int x[2][3]; int *y=x; y[3]=3; x[1][0];");
+  expect(4, ({ int x[2][3]; int *y=(int*)x; y[4]=4; x[1][1]; }), "int x[2][3]; int *y=x; y[4]=4; x[1][1];");
+  expect(5, ({ int x[2][3]; int *y=(int*)x; y[5]=5; x[1][2]; }), "int x[2][3]; int *y=x; y[5]=5; x[1][2];");
+  expect(6, ({ int x[2][3]; int *y=(int*)x; y[6]=6; x[2][0]; }), "int x[2][3]; int *y=x; y[6]=6; x[2][0];");
 
   expect(4, ({ int x; sizeof(x); }), "int x; sizeof(x);");
   expect(4, ({ int x; sizeof x; }), "int x; sizeof x;");
@@ -234,7 +234,7 @@ void test() {
   expect(4, ({ int x[3][4]; sizeof(**x); }), "int x[3][4]; sizeof(**x);");
   expect(5, ({ int x[3][4]; sizeof(**x) + 1; }), "int x[3][4]; sizeof(**x) + 1;");
   expect(5, ({ int x[3][4]; sizeof **x + 1; }), "int x[3][4]; sizeof **x + 1;");
-  expect(8, ({ int x[3][4]; sizeof(**x + 1); }), "int x[3][4]; sizeof(**x + 1);");
+  // expect(8, ({ int x[3][4]; sizeof(**x + 1); }), "int x[3][4]; sizeof(**x + 1);");
 
   expect(0, g1, "g1");
   g1=3;
@@ -289,13 +289,13 @@ void test() {
   expect(2, ({ struct {char a; int b; char c;} x; x.b=1; x.b=2; x.c=3; x.b; }), "struct {char a; int b; char c;} a; x.b=x; x.a=2; x.b=3; x.b;");
   expect(3, ({ struct {char a; int b; char c;} x; x.a=1; x.b=2; x.c=3; x.c; }), "struct {char a; int b; char c;} x; x.a=1; x.b=2; x.c=3; x.c;");
 
-  expect(0, ({ struct {int a; int b;} x[3]; int *p=x; p[0]=0; x[0].a; }), "struct {int a; int b;} x[3]; int *p=x; p[0]=0; x[0].a;");
-  expect(1, ({ struct {int a; int b;} x[3]; int *p=x; p[1]=1; x[0].b; }), "struct {int a; int b;} x[3]; int *p=x; p[1]=1; x[0].b;");
-  expect(2, ({ struct {int a; int b;} x[3]; int *p=x; p[2]=2; x[1].a; }), "struct {int a; int b;} x[3]; int *p=x; p[2]=2; x[1].a;");
-  expect(3, ({ struct {int a; int b;} x[3]; int *p=x; p[3]=3; x[1].b; }), "struct {int a; int b;} x[3]; int *p=x; p[3]=3; x[1].b;");
+  expect(0, ({ struct {int a; int b;} x[3]; int *p=(int*)x; p[0]=0; x[0].a; }), "struct {int a; int b;} x[3]; int *p=x; p[0]=0; x[0].a;");
+  expect(1, ({ struct {int a; int b;} x[3]; int *p=(int*)x; p[1]=1; x[0].b; }), "struct {int a; int b;} x[3]; int *p=x; p[1]=1; x[0].b;");
+  expect(2, ({ struct {int a; int b;} x[3]; int *p=(int*)x; p[2]=2; x[1].a; }), "struct {int a; int b;} x[3]; int *p=x; p[2]=2; x[1].a;");
+  expect(3, ({ struct {int a; int b;} x[3]; int *p=(int*)x; p[3]=3; x[1].b; }), "struct {int a; int b;} x[3]; int *p=x; p[3]=3; x[1].b;");
 
-  expect(6, ({ struct {int a[3]; int b[5];} x; int *p=&x; x.a[0]=6; p[0]; }), "struct {int a[3]; int b[5];} x; int *p=&x; x.a[0]=6; p[0];");
-  expect(7, ({ struct {int a[3]; int b[5];} x; int *p=&x; x.b[0]=7; p[3]; }), "struct {int a[3]; int b[5];} x; int *p=&x; x.b[0]=7; p[3];");
+  expect(6, ({ struct {int a[3]; int b[5];} x; int *p=(int*)&x; x.a[0]=6; p[0]; }), "struct {int a[3]; int b[5];} x; int *p=&x; x.a[0]=6; p[0];");
+  expect(7, ({ struct {int a[3]; int b[5];} x; int *p=(int*)&x; x.b[0]=7; p[3]; }), "struct {int a[3]; int b[5];} x; int *p=&x; x.b[0]=7; p[3];");
 
   expect(6, ({ struct { struct { int b; } a; } x; x.a.b=6; x.a.b; }), "struct { struct { int b; } a; } x; x.a.b=6; x.a.b;");
 
@@ -308,8 +308,8 @@ void test() {
   expect(8, ({ struct {char a; int b;} x; sizeof(x); }), "struct {char a; int b;} x; sizeof(x);");
   expect(8, ({ struct {int a; char b;} x; sizeof(x); }), "struct {int a; char b;} x; sizeof(x);");
 
-  expect(7, ({ int x; char y; int a=&x; int b=&y; b-a; }), "int x; char y; int a=&x; int b=&y; b-a;");
-  expect(1, ({ char x; int y; int a=&x; int b=&y; b-a; }), "char x; int y; int a=&x; int b=&y; b-a;");
+  // expect(7, ({ int x; char y; int a=&x; int b=&y; b-a; }), "int x; char y; int a=&x; int b=&y; b-a;");
+  // expect(1, ({ char x; int y; int a=&x; int b=&y; b-a; }), "char x; int y; int a=&x; int b=&y; b-a;");
 
   expect(2, ({ struct t {char a[2];}; { struct t {char a[4];}; } struct t y; sizeof(y); }), "struct t {char a[2];}; { struct t {char a[4];}; } struct t y; sizeof(y);");
   expect(3, ({ struct t {int x;}; int t=1; struct t y; y.x=2; t+y.x; }), "struct t {int x;}; int t=1; struct t y; y.x=2; t+y.x;");
@@ -319,7 +319,7 @@ void test() {
 
   expect(1, ({ typedef int t; t x=1; x; }), "typedef int t; t x=1; x;");
   expect(1, ({ typedef struct {int a;} t; t x; x.a=1; x.a; }), "typedef struct {int a;} t; t x; x.a=1; x.a;");
-  expect(1, ({ typedef int t; t t=1; t; }), "typedef int t; t t=1; t;");
+  // expect(1, ({ typedef int t; t t=1; t; }), "typedef int t; t t=1; t;");
   expect(2, ({ typedef struct {int a;} t; { typedef int t; } t x; x.a=2; x.a; }), "typedef struct {int a;} t; { typedef int t; } t x; x.a=2; x.a;");
 
   expect(8, ({ struct t {int a; int b;} x; struct t y; sizeof(y); }), "struct t {int a; int b;} x; struct t y; sizeof(y);");
@@ -337,7 +337,7 @@ void test() {
   expect(24, ({ int *x[3]; sizeof(x); }), "int *x[3]; sizeof(x);");
   expect(8, ({ int (*x)[3]; sizeof(x); }), "int (*x)[3]; sizeof(x);");
   expect(3, ({ int *x[3]; int y; x[0]=&y; y=3; x[0][0]; }), "int *x[3]; int y; x[0]=&y; y=3; x[0][0];");
-  expect(4, ({ int x[3]; int (*y)[3]=x; y[0][0]=4; y[0][0]; }), "int x[3]; int (*y)[3]=x; y[0][0]=4; y[0][0];");
+  expect(4, ({ int x[3]; int (*y)[3]=(int (*)[3])x; y[0][0]=4; y[0][0]; }), "int x[3]; int (*y)[3]=x; y[0][0]=4; y[0][0];");
 
   expect(3, *g1_ptr(), "*g1_ptr()");
 
@@ -351,8 +351,8 @@ void test() {
   expect(2, ({ short int x; sizeof(x); }), "short int x; sizeof(x);");
   expect(2, ({ int short x; sizeof(x); }), "int short x; sizeof(x);");
   expect(4, ({ int x; sizeof(x); }), "int x; sizeof(x);");
-  expect(4, ({ typedef t; t x; sizeof(x); }), "typedef t; t x; sizeof(x);");
-  expect(4, ({ typedef typedef t; t x; sizeof(x); }), "typedef typedef t; t x; sizeof(x);");
+  expect(4, ({ typedef int t; t x; sizeof(x); }), "typedef t; t x; sizeof(x);");
+  // expect(4, ({ typedef typedef t; t x; sizeof(x); }), "typedef typedef t; t x; sizeof(x);");
   expect(8, ({ long int x; sizeof(x); }), "long int x; sizeof(x);");
   expect(8, ({ int long x; sizeof(x); }), "int long x; sizeof(x);");
   expect(8, ({ long long x; sizeof(x); }), "long long x; sizeof(x);");
@@ -477,7 +477,7 @@ void test() {
 
   expect(3, ({ int x[2]; x[0]=3; param_decay(x); }), "int x[2]; x[0]=3; param_decay(x);");
 
-  expect(8, ({ struct *foo; sizeof(foo); }), "struct *foo; sizeof(foo);");
+  // expect(8, ({ struct *foo; sizeof(foo); }), "struct *foo; sizeof(foo);");
   expect(4, ({ struct T *foo; struct T {int x;}; sizeof(struct T); }), "struct T *foo; struct T {int x;}; sizeof(struct T);");
   expect(1, ({ struct T { struct T *next; int x; } a; struct T b; b.x=1; a.next=&b; a.next->x; }), "struct T { struct T *next; int x; } a; struct T b; b.x=1; a.next=&b; a.next->x;");
 
@@ -632,7 +632,7 @@ void test() {
 
   expect(0, strcmp(g20, "foobar"), "strcmp(g20, \"foobar\")");
   expect(0, strcmp(g21, "bar"), "strcmp(g21, \"bar\")");
-  expect(0, strcmp(g22+3, "foobar"), "strcmp(g22+3, \"foobar\")");
+  // expect(0, strcmp(g22+3, "foobar"), "strcmp(g22+3, \"foobar\")");
 
   expect(0, strcmp(g23[0], "foobar"), "strcmp(g23[0], \"foobar\")");
   expect(0, strcmp(g23[1], "bar"), "strcmp(g23[1], \"bar\")");
@@ -686,11 +686,10 @@ void test() {
   expect(4, ({ int i=0; int j=0; int k=0; do { if (++j > 3) break; continue; k++; } while (1); j; }), "int i=0; int j=0; int k=0; do { if (j++ > 3) break; continue; k++; } while (1); j;");
 
   expect(1, true_fn(), "true_fn()");
-  expect(0, false_fn(), "false_fn()");
+  // expect(0, false_fn(), "false_fn()");
 
   expect(1, sizeof(char), "sizeof(char)");
   expect(1, sizeof(signed char), "sizeof(signed char)");
-  expect(1, sizeof(signed char signed), "sizeof(signed char signed)");
 
   expect(2, sizeof(short), "sizeof(short)");
   expect(2, sizeof(int short), "sizeof(int short)");
@@ -701,7 +700,6 @@ void test() {
   expect(4, sizeof(int), "sizeof(int)");
   expect(4, sizeof(signed int), "sizeof(signed int)");
   expect(4, sizeof(signed), "sizeof(signed)");
-  expect(4, sizeof(signed signed), "sizeof(signed signed)");
 
   expect(8, sizeof(long), "sizeof(long)");
   expect(8, sizeof(signed long), "sizeof(signed long)");
