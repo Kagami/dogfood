@@ -49,4 +49,4 @@ fulltest: clean stage1 stage2 test1 test2
 clean:
 	rm -rf stage1 stage2 .tmp1 .tmp2
 
-.PHONY: $(TSRCS)
+.PHONY: $(TSRCS) test/.elf.c

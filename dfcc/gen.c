@@ -8,11 +8,6 @@
 #include <string.h>
 #include "dfcc.h"
 
-static const char *gArgreg1[] = {"dil", "sil",  "dl",  "cl", "r8b", "r9b"};
-static const char *gArgreg2[] = { "di",  "si",  "dx",  "cx", "r8w", "r9w"};
-static const char *gArgreg4[] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
-static const char *gArgreg8[] = {"rdi", "rsi", "rdx", "rcx", "r8",  "r9"};
-
 typedef struct {
   uint8_t *data;
   size_t size;
@@ -28,6 +23,15 @@ typedef struct {
 } GenContext;
 
 static GenContext *gCtx;
+
+static const char *gArgReg1[] = {"dil", "sil",  "dl",  "cl", "r8b", "r9b"};
+static const char *gArgReg2[] = { "di",  "si",  "dx",  "cx", "r8w", "r9w"};
+static const char *gArgReg4[] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
+static const char *gArgReg8[] = {"rdi", "rsi", "rdx", "rcx", "r8",  "r9"};
+
+//
+// Helpers
+//
 
 static Section *new_section() {
   Section *s = calloc(1, sizeof(Section));
@@ -47,708 +51,14 @@ static size_t section_writestr(Section *s, const char *str) {
   return section_write(s, str, strlen(str) + 1);
 }
 
-static void emit(const char *fmt, ...) {
-  va_list ap;
-  va_start(ap, fmt);
-  vfprintf(gCtx->outfp, fmt, ap);
-  va_end(ap);
+//
+// ELF
+//
+
+static void elf_start() {
 }
 
-static void emit_global(const char *name) {
-  emit(".global %s\n", name);
-}
-
-static void gen_node(Node *node);
-
-// Pushes the given node's address to the stack.
-static void gen_addr(Node *node) {
-  switch (node->kind) {
-  case ND_VAR: {
-    if (node->init)
-      gen_node(node->init);
-
-    Var *var = node->var;
-    if (var->is_local) {
-      emit("  lea rax, [rbp-%d]\n", var->offset);
-      emit("  push rax\n");
-    } else {
-      emit("  push offset %s\n", var->name);
-    }
-    return;
-  }
-  case ND_DEREF:
-    gen_node(node->lhs);
-    return;
-  case ND_MEMBER:
-    gen_addr(node->lhs);
-    emit("  pop rax\n");
-    emit("  add rax, %d\n", node->member->offset);
-    emit("  push rax\n");
-    return;
-  default:
-    error_tok(node->tok, "not an lvalue");
-  }
-}
-
-static void gen_lval(Node *node) {
-  if (node->ty->kind == TY_ARRAY)
-    error_tok(node->tok, "not an lvalue");
-  gen_addr(node);
-}
-
-static void load(Type *ty) {
-  emit("  pop rax\n");
-
-  if (ty->size == 1) {
-    emit("  movsx rax, byte ptr [rax]\n");
-  } else if (ty->size == 2) {
-    emit("  movsx rax, word ptr [rax]\n");
-  } else if (ty->size == 4) {
-    emit("  movsxd rax, dword ptr [rax]\n");
-  } else {
-    assert(ty->size == 8);
-    emit("  mov rax, [rax]\n");
-  }
-
-  emit("  push rax\n");
-}
-
-static void store(Type *ty) {
-  emit("  pop rdi\n");
-  emit("  pop rax\n");
-
-  if (ty->kind == TY_BOOL) {
-    emit("  cmp rdi, 0\n");
-    emit("  setne dil\n");
-    emit("  movzb rdi, dil\n");
-  }
-
-  if (ty->size == 1) {
-    emit("  mov [rax], dil\n");
-  } else if (ty->size == 2) {
-    emit("  mov [rax], di\n");
-  } else if (ty->size == 4) {
-    emit("  mov [rax], edi\n");
-  } else {
-    assert(ty->size == 8);
-    emit("  mov [rax], rdi\n");
-  }
-
-  emit("  push rdi\n");
-}
-
-static void cast_truncate(Type *ty) {
-  emit("  pop rax\n");
-
-  if (ty->kind == TY_BOOL) {
-    emit("  cmp rax, 0\n");
-    emit("  setne al\n");
-  }
-
-  if (ty->size == 1) {
-    emit("  movsx rax, al\n");
-  } else if (ty->size == 2) {
-    emit("  movsx rax, ax\n");
-  } else if (ty->size == 4) {
-    emit("  movsxd rax, eax\n");
-  }
-  emit("  push rax\n");
-}
-
-static void inc(Type *ty) {
-  emit("  pop rax\n");
-  emit("  add rax, %d\n", ty->base ? ty->base->size : 1);
-  emit("  push rax\n");
-}
-
-static void dec(Type *ty) {
-  emit("  pop rax\n");
-  emit("  sub rax, %d\n", ty->base ? ty->base->size : 1);
-  emit("  push rax\n");
-}
-
-static void gen_binary(Node *node) {
-  emit("  pop rdi\n");
-  emit("  pop rax\n");
-
-  switch (node->kind) {
-  case ND_ADD:
-  case ND_ADD_EQ:
-    emit("  add rax, rdi\n");
-    break;
-  case ND_PTR_ADD:
-  case ND_PTR_ADD_EQ:
-    emit("  imul rdi, %d\n", node->ty->base->size);
-    emit("  add rax, rdi\n");
-    break;
-  case ND_SUB:
-  case ND_SUB_EQ:
-    emit("  sub rax, rdi\n");
-    break;
-  case ND_PTR_SUB:
-  case ND_PTR_SUB_EQ:
-    emit("  imul rdi, %d\n", node->ty->base->size);
-    emit("  sub rax, rdi\n");
-    break;
-  case ND_PTR_DIFF:
-    emit("  sub rax, rdi\n");
-    emit("  cqo\n");
-    emit("  mov rdi, %d\n", node->lhs->ty->base->size);
-    emit("  idiv rdi\n");
-    break;
-  case ND_MUL:
-  case ND_MUL_EQ:
-    emit("  imul rax, rdi\n");
-    break;
-  case ND_DIV:
-  case ND_DIV_EQ:
-    emit("  cqo\n");
-    emit("  idiv rdi\n");
-    break;
-  case ND_BITAND:
-  case ND_BITAND_EQ:
-    emit("  and rax, rdi\n");
-    break;
-  case ND_BITOR:
-  case ND_BITOR_EQ:
-    emit("  or rax, rdi\n");
-    break;
-  case ND_BITXOR:
-  case ND_BITXOR_EQ:
-    emit("  xor rax, rdi\n");
-    break;
-  case ND_SHL:
-  case ND_SHL_EQ:
-    emit("  mov cl, dil\n");
-    emit("  shl rax, cl\n");
-    break;
-  case ND_SHR:
-  case ND_SHR_EQ:
-    emit("  mov cl, dil\n");
-    emit("  sar rax, cl\n");
-    break;
-  case ND_EQ:
-    emit("  cmp rax, rdi\n");
-    emit("  sete al\n");
-    emit("  movzb rax, al\n");
-    break;
-  case ND_NE:
-    emit("  cmp rax, rdi\n");
-    emit("  setne al\n");
-    emit("  movzb rax, al\n");
-    break;
-  case ND_LT:
-    emit("  cmp rax, rdi\n");
-    emit("  setl al\n");
-    emit("  movzb rax, al\n");
-    break;
-  case ND_LE:
-    emit("  cmp rax, rdi\n");
-    emit("  setle al\n");
-    emit("  movzb rax, al\n");
-    break;
-  default:
-    break;
-  }
-
-  emit("  push rax\n");
-}
-
-// Generate code for a given node.
-static void gen_node(Node *node) {
-  switch (node->kind) {
-  case ND_NULL:
-    return;
-  case ND_NUM:
-    if (node->val == (int)node->val) {
-      emit("  push %ld\n", node->val);
-    } else {
-      emit("  movabs rax, %ld\n", node->val);
-      emit("  push rax\n");
-    }
-    return;
-  case ND_EXPR_STMT:
-    gen_node(node->lhs);
-    emit("  add rsp, 8\n");
-    return;
-  case ND_VAR:
-    if (node->init)
-      gen_node(node->init);
-    gen_addr(node);
-    if (node->ty->kind != TY_ARRAY)
-      load(node->ty);
-    return;
-  case ND_MEMBER:
-    gen_addr(node);
-    if (node->ty->kind != TY_ARRAY)
-      load(node->ty);
-    return;
-  case ND_ASSIGN:
-    gen_lval(node->lhs);
-    gen_node(node->rhs);
-    store(node->ty);
-    return;
-  case ND_TERNARY: {
-    int seq = gCtx->labelseq++;
-    gen_node(node->cond);
-    emit("  pop rax\n");
-    emit("  cmp rax, 0\n");
-    emit("  je  .L.else.%d\n", seq);
-    gen_node(node->then);
-    emit("  jmp .L.end.%d\n", seq);
-    emit(".L.else.%d:\n", seq);
-    gen_node(node->els);
-    emit(".L.end.%d:\n", seq);
-    return;
-  }
-  case ND_PRE_INC:
-    gen_lval(node->lhs);
-    emit("  push [rsp]\n");
-    load(node->ty);
-    inc(node->ty);
-    store(node->ty);
-    return;
-  case ND_PRE_DEC:
-    gen_lval(node->lhs);
-    emit("  push [rsp]\n");
-    load(node->ty);
-    dec(node->ty);
-    store(node->ty);
-    return;
-  case ND_POST_INC:
-    gen_lval(node->lhs);
-    emit("  push [rsp]\n");
-    load(node->ty);
-    inc(node->ty);
-    store(node->ty);
-    dec(node->ty);
-    return;
-  case ND_POST_DEC:
-    gen_lval(node->lhs);
-    emit("  push [rsp]\n");
-    load(node->ty);
-    dec(node->ty);
-    store(node->ty);
-    inc(node->ty);
-    return;
-  case ND_ADD_EQ:
-  case ND_PTR_ADD_EQ:
-  case ND_SUB_EQ:
-  case ND_PTR_SUB_EQ:
-  case ND_MUL_EQ:
-  case ND_DIV_EQ:
-  case ND_SHL_EQ:
-  case ND_SHR_EQ:
-  case ND_BITAND_EQ:
-  case ND_BITOR_EQ:
-  case ND_BITXOR_EQ:
-    gen_lval(node->lhs);
-    emit("  push [rsp]\n");
-    load(node->lhs->ty);
-    gen_node(node->rhs);
-    gen_binary(node);
-    store(node->ty);
-    return;
-  case ND_COMMA:
-    gen_node(node->lhs);
-    gen_node(node->rhs);
-    return;
-  case ND_ADDR:
-    gen_addr(node->lhs);
-    return;
-  case ND_DEREF:
-    gen_node(node->lhs);
-    if (node->ty->kind != TY_ARRAY)
-      load(node->ty);
-    return;
-  case ND_NOT:
-    gen_node(node->lhs);
-    emit("  pop rax\n");
-    emit("  cmp rax, 0\n");
-    emit("  sete al\n");
-    emit("  movzb rax, al\n");
-    emit("  push rax\n");
-    return;
-  case ND_BITNOT:
-    gen_node(node->lhs);
-    emit("  pop rax\n");
-    emit("  not rax\n");
-    emit("  push rax\n");
-    return;
-  case ND_LOGAND: {
-    int seq = gCtx->labelseq++;
-    gen_node(node->lhs);
-    emit("  pop rax\n");
-    emit("  cmp rax, 0\n");
-    emit("  je  .L.false.%d\n", seq);
-    gen_node(node->rhs);
-    emit("  pop rax\n");
-    emit("  cmp rax, 0\n");
-    emit("  je  .L.false.%d\n", seq);
-    emit("  push 1\n");
-    emit("  jmp .L.end.%d\n", seq);
-    emit(".L.false.%d:\n", seq);
-    emit("  push 0\n");
-    emit(".L.end.%d:\n", seq);
-    return;
-  }
-  case ND_LOGOR: {
-    int seq = gCtx->labelseq++;
-    gen_node(node->lhs);
-    emit("  pop rax\n");
-    emit("  cmp rax, 0\n");
-    emit("  jne .L.true.%d\n", seq);
-    gen_node(node->rhs);
-    emit("  pop rax\n");
-    emit("  cmp rax, 0\n");
-    emit("  jne .L.true.%d\n", seq);
-    emit("  push 0\n");
-    emit("  jmp .L.end.%d\n", seq);
-    emit(".L.true.%d:\n", seq);
-    emit("  push 1\n");
-    emit(".L.end.%d:\n", seq);
-    return;
-  }
-  case ND_IF: {
-    int seq = gCtx->labelseq++;
-    if (node->els) {
-      gen_node(node->cond);
-      emit("  pop rax\n");
-      emit("  cmp rax, 0\n");
-      emit("  je  .L.else.%d\n", seq);
-      gen_node(node->then);
-      emit("  jmp .L.end.%d\n", seq);
-      emit(".L.else.%d:\n", seq);
-      gen_node(node->els);
-      emit(".L.end.%d:\n", seq);
-    } else {
-      gen_node(node->cond);
-      emit("  pop rax\n");
-      emit("  cmp rax, 0\n");
-      emit("  je  .L.end.%d\n", seq);
-      gen_node(node->then);
-      emit(".L.end.%d:\n", seq);
-    }
-    return;
-  }
-  case ND_WHILE: {
-    int seq = gCtx->labelseq++;
-    int brk = gCtx->brkseq;
-    int cont = gCtx->contseq;
-    gCtx->brkseq = gCtx->contseq = seq;
-
-    emit(".L.continue.%d:\n", seq);
-    gen_node(node->cond);
-    emit("  pop rax\n");
-    emit("  cmp rax, 0\n");
-    emit("  je  .L.break.%d\n", seq);
-    gen_node(node->then);
-    emit("  jmp .L.continue.%d\n", seq);
-    emit(".L.break.%d:\n", seq);
-
-    gCtx->brkseq = brk;
-    gCtx->contseq = cont;
-    return;
-  }
-  case ND_FOR: {
-    int seq = gCtx->labelseq++;
-    int brk = gCtx->brkseq;
-    int cont = gCtx->contseq;
-    gCtx->brkseq = gCtx->contseq = seq;
-
-    if (node->init)
-      gen_node(node->init);
-    emit(".L.begin.%d:\n", seq);
-    if (node->cond) {
-      gen_node(node->cond);
-      emit("  pop rax\n");
-      emit("  cmp rax, 0\n");
-      emit("  je  .L.break.%d\n", seq);
-    }
-    gen_node(node->then);
-    emit(".L.continue.%d:\n", seq);
-    if (node->inc)
-      gen_node(node->inc);
-    emit("  jmp .L.begin.%d\n", seq);
-    emit(".L.break.%d:\n", seq);
-
-    gCtx->brkseq = brk;
-    gCtx->contseq = cont;
-    return;
-  }
-  case ND_DO: {
-    int seq = gCtx->labelseq++;
-    int brk = gCtx->brkseq;
-    int cont = gCtx->contseq;
-    gCtx->brkseq = gCtx->contseq = seq;
-
-    emit(".L.begin.%d:\n", seq);
-    gen_node(node->then);
-    emit(".L.continue.%d:\n", seq);
-    gen_node(node->cond);
-    emit("  pop rax\n");
-    emit("  cmp rax, 0\n");
-    emit("  jne .L.begin.%d\n", seq);
-    emit(".L.break.%d:\n", seq);
-
-    gCtx->brkseq = brk;
-    gCtx->contseq = cont;
-    return;
-  }
-  case ND_SWITCH: {
-    int seq = gCtx->labelseq++;
-    int brk = gCtx->brkseq;
-    gCtx->brkseq = seq;
-    node->case_label = seq;
-
-    gen_node(node->cond);
-    emit("  pop rax\n");
-
-    for (Node *n = node->case_next; n; n = n->case_next) {
-      n->case_label = gCtx->labelseq++;
-      n->case_end_label = seq;
-      emit("  cmp rax, %ld\n", n->val);
-      emit("  je .L.case.%d\n", n->case_label);
-    }
-
-    if (node->default_case) {
-      int i = gCtx->labelseq++;
-      node->default_case->case_end_label = seq;
-      node->default_case->case_label = i;
-      emit("  jmp .L.case.%d\n", i);
-    }
-
-    emit("  jmp .L.break.%d\n", seq);
-    gen_node(node->then);
-    emit(".L.break.%d:\n", seq);
-
-    gCtx->brkseq = brk;
-    return;
-  }
-  case ND_CASE:
-    emit(".L.case.%d:\n", node->case_label);
-    gen_node(node->lhs);
-    return;
-  case ND_BLOCK:
-  case ND_STMT_EXPR:
-    for (Node *n = node->body; n; n = n->next)
-      gen_node(n);
-    return;
-  case ND_BREAK:
-    if (gCtx->brkseq == 0)
-      error_tok(node->tok, "stray break");
-    emit("  jmp .L.break.%d\n", gCtx->brkseq);
-    return;
-  case ND_CONTINUE:
-    if (gCtx->contseq == 0)
-      error_tok(node->tok, "stray continue");
-    emit("  jmp .L.continue.%d\n", gCtx->contseq);
-    return;
-  case ND_GOTO:
-    emit("  jmp .L.label.%s.%s\n", gCtx->funcname, node->label_name);
-    return;
-  case ND_LABEL:
-    emit(".L.label.%s.%s:\n", gCtx->funcname, node->label_name);
-    gen_node(node->lhs);
-    return;
-  case ND_FUNCALL: {
-    // Gen function arguments
-    int nargs = 0;
-    for (Node *arg = node->args; arg; arg = arg->next) {
-      gen_node(arg);
-      nargs++;
-    }
-    // Assign arguments to corresponding register
-    for (int i = nargs - 1; i >= 0; i--) {
-      emit("  pop %s\n", gArgreg8[i]);
-    }
-
-    if (strcmp(node->funcname, "__builtin_va_start") == 0) {
-      // Get gp_offset
-      emit("  mov edx, dword ptr [rbp-8]\n");
-      // Get reg_save_area
-      emit("  lea rcx, [rbp-56]\n");
-      // Fill va_list
-      emit("  mov dword ptr [rdi], edx\n"); // gp_offset
-      emit("  mov dword ptr [rdi+4], 0\n"); // fp_offset
-      emit("  mov qword ptr [rdi+8], 0\n"); // overflow_arg_area
-      emit("  mov qword ptr [rdi+16], rcx\n"); // reg_save_area
-      // Adjust for ND_EXPR_STMT
-      emit("  sub rsp, 8\n");
-      return;
-    }
-
-    // We need to align RSP to a 16 byte boundary before
-    // calling a function because it is an ABI requirement.
-    // RAX is set to 0 for variadic function.
-    int seq = gCtx->labelseq++;
-    emit("  mov rax, rsp\n");
-    emit("  and rax, 15\n");
-    emit("  jnz .L.call.%d\n", seq);
-    emit("  mov rax, 0\n");
-    emit("  call %s\n", node->funcname);
-    emit("  jmp .L.end.%d\n", seq);
-    emit(".L.call.%d:\n", seq);
-    emit("  sub rsp, 8\n");
-    emit("  mov rax, 0\n");
-    emit("  call %s\n", node->funcname);
-    emit("  add rsp, 8\n");
-    emit(".L.end.%d:\n", seq);
-    if (node->ty->kind == TY_BOOL)
-      emit("  movzb rax, al\n");
-    emit("  push rax\n");
-    return;
-  }
-  case ND_RETURN:
-    if (node->lhs) {
-      gen_node(node->lhs);
-      emit("  pop rax\n");
-    }
-    emit("  jmp .L.return.%s\n", gCtx->funcname);
-    return;
-  case ND_CAST:
-    gen_node(node->lhs);
-    cast_truncate(node->ty);
-    return;
-  default:
-    break;
-  }
-
-  gen_node(node->lhs);
-  gen_node(node->rhs);
-  gen_binary(node);
-}
-
-static void gen_header() {
-  if (gCtx->dump_asm) {
-    emit(".intel_syntax noprefix\n");
-  }
-}
-
-static void gen_data(Program *prog) {
-  for (VarList *vl = prog->globals; vl; vl = vl->next)
-    if (!vl->var->is_static) {
-      emit_global(vl->var->name);
-    }
-
-  if (gCtx->dump_asm) {
-    emit(".bss\n");
-  }
-
-  for (VarList *vl = prog->globals; vl; vl = vl->next) {
-    Var *var = vl->var;
-    if (var->initializer)
-      continue;
-
-    emit(".align %d\n", var->ty->align);
-    emit("%s:\n", var->name);
-    emit("  .zero %d\n", var->ty->size);
-  }
-
-  if (gCtx->dump_asm) {
-    emit(".data\n");
-  }
-
-  for (VarList *vl = prog->globals; vl; vl = vl->next) {
-    Var *var = vl->var;
-    if (!var->initializer)
-      continue;
-
-    emit(".align %d\n", var->ty->align);
-    emit("%s:\n", var->name);
-
-    for (Initializer *init = var->initializer; init; init = init->next) {
-      if (init->label)
-        emit("  .quad %s%+ld\n", init->label, init->addend);
-      else if (init->sz == 1)
-        emit("  .byte %ld\n", init->val);
-      else
-        emit("  .%dbyte %ld\n", init->sz, init->val);
-    }
-  }
-}
-
-static void load_arg(Var *var, int idx) {
-  int sz = var->ty->size;
-  if (sz == 1) {
-    emit("  mov [rbp-%d], %s\n", var->offset, gArgreg1[idx]);
-  } else if (sz == 2) {
-    emit("  mov [rbp-%d], %s\n", var->offset, gArgreg2[idx]);
-  } else if (sz == 4) {
-    emit("  mov [rbp-%d], %s\n", var->offset, gArgreg4[idx]);
-  } else {
-    assert(sz == 8);
-    emit("  mov [rbp-%d], %s\n", var->offset, gArgreg8[idx]);
-  }
-}
-
-static void gen_text(Program *prog) {
-  if (gCtx->dump_asm) {
-    emit(".text\n");
-  }
-
-  for (Function *fn = prog->fns; fn; fn = fn->next) {
-    if (!fn->is_static) {
-      emit_global(fn->name);
-    }
-    emit("%s:\n", fn->name);
-    gCtx->funcname = fn->name;
-
-    // Prologue
-    emit("  push rbp\n");
-    emit("  mov rbp, rsp\n");
-    emit("  sub rsp, %d\n", fn->stack_size);
-
-    // Save arg registers if function is variadic
-    if (fn->has_varargs) {
-      // Num of regular parameters to calculate gp_offset
-      int n = 0;
-      for (VarList *vl = fn->params; vl; vl = vl->next) {
-        n++;
-      }
-      // Register save area
-      emit("  mov [rbp-56], rdi\n");
-      emit("  mov [rbp-48], rsi\n");
-      emit("  mov [rbp-40], rdx\n");
-      emit("  mov [rbp-32], rcx\n");
-      emit("  mov [rbp-24], r8\n");
-      emit("  mov [rbp-16], r9\n");
-      // gp_offset
-      emit("  mov dword ptr [rbp-8], %d\n", n * 8);
-    }
-
-    // Push arguments to the stack
-    int i = 0;
-    for (VarList *vl = fn->params; vl; vl = vl->next)
-      load_arg(vl->var, i++);
-
-    // Emit code
-    for (Node *node = fn->node; node; node = node->next)
-      gen_node(node);
-
-    // Epilogue
-    emit(".L.return.%s:\n", gCtx->funcname);
-    emit("  mov rsp, rbp\n");
-    emit("  pop rbp\n");
-    emit("  ret\n");
-  }
-}
-
-// Assign offsets to local variables.
-void gen_offsets(Program *prog) {
-  for (Function *fn = prog->fns; fn; fn = fn->next) {
-    int offset = fn->has_varargs ? 56 : 0;
-    for (VarList *vl = fn->locals; vl; vl = vl->next) {
-      Var *var = vl->var;
-      offset = align_to(offset, var->ty->align);
-      offset += var->ty->size;
-      var->offset = offset;
-    }
-    fn->stack_size = align_to(offset, 8);
-  }
-}
-
-static void write_elf() {
+static void elf_end() {
   // Main header
   Elf64_Ehdr elf_header = {
     {
@@ -847,9 +157,730 @@ static void write_elf() {
   fwrite(text->data, 1, text->size, gCtx->outfp);
 }
 
+//
+// Encoding
+//
+
+static void emit_fmt(const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  vfprintf(gCtx->outfp, fmt, ap);
+  fprintf(gCtx->outfp, "\n");
+  va_end(ap);
+}
+
+static void emit_global(const char *name) {
+  if (gCtx->dump_asm) {
+    emit_fmt(".global %s", name);
+  }
+}
+
+static void emit_llabel(const char *label_type, const char *label_name) {
+  if (gCtx->dump_asm) {
+    emit_fmt(".L.%s.%s:", label_type, label_name);
+  }
+}
+
+static void emit_section(const char *name) {
+  if (gCtx->dump_asm) {
+    emit_fmt(".%s", name);
+  }
+}
+
+static void emit_symbol(uint8_t sym_type, const char *sym_name, bool is_global) {
+  if (is_global) {
+    emit_global(sym_name);
+  }
+  emit_fmt("%s:", sym_name);
+}
+
+//
+// Tree walking
+//
+
+static void gen_node(Node *node);
+
+// Pushes the given node's address to the stack.
+static void gen_addr(Node *node) {
+  switch (node->kind) {
+  case ND_VAR: {
+    if (node->init)
+      gen_node(node->init);
+
+    Var *var = node->var;
+    if (var->is_local) {
+      emit_fmt("  lea rax, [rbp-%d]", var->offset);
+      emit_fmt("  push rax");
+    } else {
+      emit_fmt("  push offset %s", var->name);
+    }
+    return;
+  }
+  case ND_DEREF:
+    gen_node(node->lhs);
+    return;
+  case ND_MEMBER:
+    gen_addr(node->lhs);
+    emit_fmt("  pop rax");
+    emit_fmt("  add rax, %d", node->member->offset);
+    emit_fmt("  push rax");
+    return;
+  default:
+    error_tok(node->tok, "not an lvalue");
+  }
+}
+
+static void gen_lval(Node *node) {
+  if (node->ty->kind == TY_ARRAY)
+    error_tok(node->tok, "not an lvalue");
+  gen_addr(node);
+}
+
+static void load(Type *ty) {
+  emit_fmt("  pop rax");
+
+  if (ty->size == 1) {
+    emit_fmt("  movsx rax, byte ptr [rax]");
+  } else if (ty->size == 2) {
+    emit_fmt("  movsx rax, word ptr [rax]");
+  } else if (ty->size == 4) {
+    emit_fmt("  movsxd rax, dword ptr [rax]");
+  } else {
+    assert(ty->size == 8);
+    emit_fmt("  mov rax, [rax]");
+  }
+
+  emit_fmt("  push rax");
+}
+
+static void store(Type *ty) {
+  emit_fmt("  pop rdi");
+  emit_fmt("  pop rax");
+
+  if (ty->kind == TY_BOOL) {
+    emit_fmt("  cmp rdi, 0");
+    emit_fmt("  setne dil");
+    emit_fmt("  movzb rdi, dil");
+  }
+
+  if (ty->size == 1) {
+    emit_fmt("  mov [rax], dil");
+  } else if (ty->size == 2) {
+    emit_fmt("  mov [rax], di");
+  } else if (ty->size == 4) {
+    emit_fmt("  mov [rax], edi");
+  } else {
+    assert(ty->size == 8);
+    emit_fmt("  mov [rax], rdi");
+  }
+
+  emit_fmt("  push rdi");
+}
+
+static void cast_truncate(Type *ty) {
+  emit_fmt("  pop rax");
+
+  if (ty->kind == TY_BOOL) {
+    emit_fmt("  cmp rax, 0");
+    emit_fmt("  setne al");
+  }
+
+  if (ty->size == 1) {
+    emit_fmt("  movsx rax, al");
+  } else if (ty->size == 2) {
+    emit_fmt("  movsx rax, ax");
+  } else if (ty->size == 4) {
+    emit_fmt("  movsxd rax, eax");
+  }
+  emit_fmt("  push rax");
+}
+
+static void inc(Type *ty) {
+  emit_fmt("  pop rax");
+  emit_fmt("  add rax, %d", ty->base ? ty->base->size : 1);
+  emit_fmt("  push rax");
+}
+
+static void dec(Type *ty) {
+  emit_fmt("  pop rax");
+  emit_fmt("  sub rax, %d", ty->base ? ty->base->size : 1);
+  emit_fmt("  push rax");
+}
+
+static void gen_binary(Node *node) {
+  emit_fmt("  pop rdi");
+  emit_fmt("  pop rax");
+
+  switch (node->kind) {
+  case ND_ADD:
+  case ND_ADD_EQ:
+    emit_fmt("  add rax, rdi");
+    break;
+  case ND_PTR_ADD:
+  case ND_PTR_ADD_EQ:
+    emit_fmt("  imul rdi, %d", node->ty->base->size);
+    emit_fmt("  add rax, rdi");
+    break;
+  case ND_SUB:
+  case ND_SUB_EQ:
+    emit_fmt("  sub rax, rdi");
+    break;
+  case ND_PTR_SUB:
+  case ND_PTR_SUB_EQ:
+    emit_fmt("  imul rdi, %d", node->ty->base->size);
+    emit_fmt("  sub rax, rdi");
+    break;
+  case ND_PTR_DIFF:
+    emit_fmt("  sub rax, rdi");
+    emit_fmt("  cqo");
+    emit_fmt("  mov rdi, %d", node->lhs->ty->base->size);
+    emit_fmt("  idiv rdi");
+    break;
+  case ND_MUL:
+  case ND_MUL_EQ:
+    emit_fmt("  imul rax, rdi");
+    break;
+  case ND_DIV:
+  case ND_DIV_EQ:
+    emit_fmt("  cqo");
+    emit_fmt("  idiv rdi");
+    break;
+  case ND_BITAND:
+  case ND_BITAND_EQ:
+    emit_fmt("  and rax, rdi");
+    break;
+  case ND_BITOR:
+  case ND_BITOR_EQ:
+    emit_fmt("  or rax, rdi");
+    break;
+  case ND_BITXOR:
+  case ND_BITXOR_EQ:
+    emit_fmt("  xor rax, rdi");
+    break;
+  case ND_SHL:
+  case ND_SHL_EQ:
+    emit_fmt("  mov cl, dil");
+    emit_fmt("  shl rax, cl");
+    break;
+  case ND_SHR:
+  case ND_SHR_EQ:
+    emit_fmt("  mov cl, dil");
+    emit_fmt("  sar rax, cl");
+    break;
+  case ND_EQ:
+    emit_fmt("  cmp rax, rdi");
+    emit_fmt("  sete al");
+    emit_fmt("  movzb rax, al");
+    break;
+  case ND_NE:
+    emit_fmt("  cmp rax, rdi");
+    emit_fmt("  setne al");
+    emit_fmt("  movzb rax, al");
+    break;
+  case ND_LT:
+    emit_fmt("  cmp rax, rdi");
+    emit_fmt("  setl al");
+    emit_fmt("  movzb rax, al");
+    break;
+  case ND_LE:
+    emit_fmt("  cmp rax, rdi");
+    emit_fmt("  setle al");
+    emit_fmt("  movzb rax, al");
+    break;
+  default:
+    break;
+  }
+
+  emit_fmt("  push rax");
+}
+
+// Generate code for a given node.
+static void gen_node(Node *node) {
+  switch (node->kind) {
+  case ND_NULL:
+    return;
+  case ND_NUM:
+    if (node->val == (int)node->val) {
+      emit_fmt("  push %ld", node->val);
+    } else {
+      emit_fmt("  movabs rax, %ld", node->val);
+      emit_fmt("  push rax");
+    }
+    return;
+  case ND_EXPR_STMT:
+    gen_node(node->lhs);
+    emit_fmt("  add rsp, 8");
+    return;
+  case ND_VAR:
+    if (node->init)
+      gen_node(node->init);
+    gen_addr(node);
+    if (node->ty->kind != TY_ARRAY)
+      load(node->ty);
+    return;
+  case ND_MEMBER:
+    gen_addr(node);
+    if (node->ty->kind != TY_ARRAY)
+      load(node->ty);
+    return;
+  case ND_ASSIGN:
+    gen_lval(node->lhs);
+    gen_node(node->rhs);
+    store(node->ty);
+    return;
+  case ND_TERNARY: {
+    int seq = gCtx->labelseq++;
+    gen_node(node->cond);
+    emit_fmt("  pop rax");
+    emit_fmt("  cmp rax, 0");
+    emit_fmt("  je  .L.else.%d", seq);
+    gen_node(node->then);
+    emit_fmt("  jmp .L.end.%d", seq);
+    emit_fmt(".L.else.%d:", seq);
+    gen_node(node->els);
+    emit_fmt(".L.end.%d:", seq);
+    return;
+  }
+  case ND_PRE_INC:
+    gen_lval(node->lhs);
+    emit_fmt("  push [rsp]");
+    load(node->ty);
+    inc(node->ty);
+    store(node->ty);
+    return;
+  case ND_PRE_DEC:
+    gen_lval(node->lhs);
+    emit_fmt("  push [rsp]");
+    load(node->ty);
+    dec(node->ty);
+    store(node->ty);
+    return;
+  case ND_POST_INC:
+    gen_lval(node->lhs);
+    emit_fmt("  push [rsp]");
+    load(node->ty);
+    inc(node->ty);
+    store(node->ty);
+    dec(node->ty);
+    return;
+  case ND_POST_DEC:
+    gen_lval(node->lhs);
+    emit_fmt("  push [rsp]");
+    load(node->ty);
+    dec(node->ty);
+    store(node->ty);
+    inc(node->ty);
+    return;
+  case ND_ADD_EQ:
+  case ND_PTR_ADD_EQ:
+  case ND_SUB_EQ:
+  case ND_PTR_SUB_EQ:
+  case ND_MUL_EQ:
+  case ND_DIV_EQ:
+  case ND_SHL_EQ:
+  case ND_SHR_EQ:
+  case ND_BITAND_EQ:
+  case ND_BITOR_EQ:
+  case ND_BITXOR_EQ:
+    gen_lval(node->lhs);
+    emit_fmt("  push [rsp]");
+    load(node->lhs->ty);
+    gen_node(node->rhs);
+    gen_binary(node);
+    store(node->ty);
+    return;
+  case ND_COMMA:
+    gen_node(node->lhs);
+    gen_node(node->rhs);
+    return;
+  case ND_ADDR:
+    gen_addr(node->lhs);
+    return;
+  case ND_DEREF:
+    gen_node(node->lhs);
+    if (node->ty->kind != TY_ARRAY)
+      load(node->ty);
+    return;
+  case ND_NOT:
+    gen_node(node->lhs);
+    emit_fmt("  pop rax");
+    emit_fmt("  cmp rax, 0");
+    emit_fmt("  sete al");
+    emit_fmt("  movzb rax, al");
+    emit_fmt("  push rax");
+    return;
+  case ND_BITNOT:
+    gen_node(node->lhs);
+    emit_fmt("  pop rax");
+    emit_fmt("  not rax");
+    emit_fmt("  push rax");
+    return;
+  case ND_LOGAND: {
+    int seq = gCtx->labelseq++;
+    gen_node(node->lhs);
+    emit_fmt("  pop rax");
+    emit_fmt("  cmp rax, 0");
+    emit_fmt("  je  .L.false.%d", seq);
+    gen_node(node->rhs);
+    emit_fmt("  pop rax");
+    emit_fmt("  cmp rax, 0");
+    emit_fmt("  je  .L.false.%d", seq);
+    emit_fmt("  push 1");
+    emit_fmt("  jmp .L.end.%d", seq);
+    emit_fmt(".L.false.%d:", seq);
+    emit_fmt("  push 0");
+    emit_fmt(".L.end.%d:", seq);
+    return;
+  }
+  case ND_LOGOR: {
+    int seq = gCtx->labelseq++;
+    gen_node(node->lhs);
+    emit_fmt("  pop rax");
+    emit_fmt("  cmp rax, 0");
+    emit_fmt("  jne .L.true.%d", seq);
+    gen_node(node->rhs);
+    emit_fmt("  pop rax");
+    emit_fmt("  cmp rax, 0");
+    emit_fmt("  jne .L.true.%d", seq);
+    emit_fmt("  push 0");
+    emit_fmt("  jmp .L.end.%d", seq);
+    emit_fmt(".L.true.%d:", seq);
+    emit_fmt("  push 1");
+    emit_fmt(".L.end.%d:", seq);
+    return;
+  }
+  case ND_IF: {
+    int seq = gCtx->labelseq++;
+    if (node->els) {
+      gen_node(node->cond);
+      emit_fmt("  pop rax");
+      emit_fmt("  cmp rax, 0");
+      emit_fmt("  je  .L.else.%d", seq);
+      gen_node(node->then);
+      emit_fmt("  jmp .L.end.%d", seq);
+      emit_fmt(".L.else.%d:", seq);
+      gen_node(node->els);
+      emit_fmt(".L.end.%d:", seq);
+    } else {
+      gen_node(node->cond);
+      emit_fmt("  pop rax");
+      emit_fmt("  cmp rax, 0");
+      emit_fmt("  je  .L.end.%d", seq);
+      gen_node(node->then);
+      emit_fmt(".L.end.%d:", seq);
+    }
+    return;
+  }
+  case ND_WHILE: {
+    int seq = gCtx->labelseq++;
+    int brk = gCtx->brkseq;
+    int cont = gCtx->contseq;
+    gCtx->brkseq = gCtx->contseq = seq;
+
+    emit_fmt(".L.continue.%d:", seq);
+    gen_node(node->cond);
+    emit_fmt("  pop rax");
+    emit_fmt("  cmp rax, 0");
+    emit_fmt("  je  .L.break.%d", seq);
+    gen_node(node->then);
+    emit_fmt("  jmp .L.continue.%d", seq);
+    emit_fmt(".L.break.%d:", seq);
+
+    gCtx->brkseq = brk;
+    gCtx->contseq = cont;
+    return;
+  }
+  case ND_FOR: {
+    int seq = gCtx->labelseq++;
+    int brk = gCtx->brkseq;
+    int cont = gCtx->contseq;
+    gCtx->brkseq = gCtx->contseq = seq;
+
+    if (node->init)
+      gen_node(node->init);
+    emit_fmt(".L.begin.%d:", seq);
+    if (node->cond) {
+      gen_node(node->cond);
+      emit_fmt("  pop rax");
+      emit_fmt("  cmp rax, 0");
+      emit_fmt("  je  .L.break.%d", seq);
+    }
+    gen_node(node->then);
+    emit_fmt(".L.continue.%d:", seq);
+    if (node->inc)
+      gen_node(node->inc);
+    emit_fmt("  jmp .L.begin.%d", seq);
+    emit_fmt(".L.break.%d:", seq);
+
+    gCtx->brkseq = brk;
+    gCtx->contseq = cont;
+    return;
+  }
+  case ND_DO: {
+    int seq = gCtx->labelseq++;
+    int brk = gCtx->brkseq;
+    int cont = gCtx->contseq;
+    gCtx->brkseq = gCtx->contseq = seq;
+
+    emit_fmt(".L.begin.%d:", seq);
+    gen_node(node->then);
+    emit_fmt(".L.continue.%d:", seq);
+    gen_node(node->cond);
+    emit_fmt("  pop rax");
+    emit_fmt("  cmp rax, 0");
+    emit_fmt("  jne .L.begin.%d", seq);
+    emit_fmt(".L.break.%d:", seq);
+
+    gCtx->brkseq = brk;
+    gCtx->contseq = cont;
+    return;
+  }
+  case ND_SWITCH: {
+    int seq = gCtx->labelseq++;
+    int brk = gCtx->brkseq;
+    gCtx->brkseq = seq;
+    node->case_label = seq;
+
+    gen_node(node->cond);
+    emit_fmt("  pop rax");
+
+    for (Node *n = node->case_next; n; n = n->case_next) {
+      n->case_label = gCtx->labelseq++;
+      n->case_end_label = seq;
+      emit_fmt("  cmp rax, %ld", n->val);
+      emit_fmt("  je .L.case.%d", n->case_label);
+    }
+
+    if (node->default_case) {
+      int i = gCtx->labelseq++;
+      node->default_case->case_end_label = seq;
+      node->default_case->case_label = i;
+      emit_fmt("  jmp .L.case.%d", i);
+    }
+
+    emit_fmt("  jmp .L.break.%d", seq);
+    gen_node(node->then);
+    emit_fmt(".L.break.%d:", seq);
+
+    gCtx->brkseq = brk;
+    return;
+  }
+  case ND_CASE:
+    emit_fmt(".L.case.%d:", node->case_label);
+    gen_node(node->lhs);
+    return;
+  case ND_BLOCK:
+  case ND_STMT_EXPR:
+    for (Node *n = node->body; n; n = n->next)
+      gen_node(n);
+    return;
+  case ND_BREAK:
+    if (gCtx->brkseq == 0)
+      error_tok(node->tok, "stray break");
+    emit_fmt("  jmp .L.break.%d", gCtx->brkseq);
+    return;
+  case ND_CONTINUE:
+    if (gCtx->contseq == 0)
+      error_tok(node->tok, "stray continue");
+    emit_fmt("  jmp .L.continue.%d", gCtx->contseq);
+    return;
+  case ND_GOTO:
+    emit_fmt("  jmp .L.label.%s.%s", gCtx->funcname, node->label_name);
+    return;
+  case ND_LABEL:
+    emit_fmt(".L.label.%s.%s:", gCtx->funcname, node->label_name);
+    gen_node(node->lhs);
+    return;
+  case ND_FUNCALL: {
+    // Gen function arguments
+    int nargs = 0;
+    for (Node *arg = node->args; arg; arg = arg->next) {
+      gen_node(arg);
+      nargs++;
+    }
+    // Assign arguments to corresponding register
+    for (int i = nargs - 1; i >= 0; i--) {
+      emit_fmt("  pop %s", gArgReg8[i]);
+    }
+
+    if (strcmp(node->funcname, "__builtin_va_start") == 0) {
+      // Get gp_offset
+      emit_fmt("  mov edx, dword ptr [rbp-8]");
+      // Get reg_save_area
+      emit_fmt("  lea rcx, [rbp-56]");
+      // Fill va_list
+      emit_fmt("  mov dword ptr [rdi], edx"); // gp_offset
+      emit_fmt("  mov dword ptr [rdi+4], 0"); // fp_offset
+      emit_fmt("  mov qword ptr [rdi+8], 0"); // overflow_arg_area
+      emit_fmt("  mov qword ptr [rdi+16], rcx"); // reg_save_area
+      // Adjust for ND_EXPR_STMT
+      emit_fmt("  sub rsp, 8");
+      return;
+    }
+
+    // We need to align RSP to a 16 byte boundary before
+    // calling a function because it is an ABI requirement.
+    // RAX is set to 0 for variadic function.
+    int seq = gCtx->labelseq++;
+    emit_fmt("  mov rax, rsp");
+    emit_fmt("  and rax, 15");
+    emit_fmt("  jnz .L.call.%d", seq);
+    emit_fmt("  mov rax, 0");
+    emit_fmt("  call %s", node->funcname);
+    emit_fmt("  jmp .L.end.%d", seq);
+    emit_fmt(".L.call.%d:", seq);
+    emit_fmt("  sub rsp, 8");
+    emit_fmt("  mov rax, 0");
+    emit_fmt("  call %s", node->funcname);
+    emit_fmt("  add rsp, 8");
+    emit_fmt(".L.end.%d:", seq);
+    if (node->ty->kind == TY_BOOL)
+      emit_fmt("  movzb rax, al");
+    emit_fmt("  push rax");
+    return;
+  }
+  case ND_RETURN:
+    if (node->lhs) {
+      gen_node(node->lhs);
+      emit_fmt("  pop rax");
+    }
+    emit_fmt("  jmp .L.return.%s", gCtx->funcname);
+    return;
+  case ND_CAST:
+    gen_node(node->lhs);
+    cast_truncate(node->ty);
+    return;
+  default:
+    break;
+  }
+
+  gen_node(node->lhs);
+  gen_node(node->rhs);
+  gen_binary(node);
+}
+
+static void gen_start() {
+  if (gCtx->dump_asm) {
+    emit_fmt(".intel_syntax noprefix");
+  } else {
+    elf_start();
+  }
+}
+
+static void gen_data(Program *prog) {
+  for (VarList *vl = prog->globals; vl; vl = vl->next) {
+    if (!vl->var->is_static) {
+      emit_global(vl->var->name);
+    }
+  }
+
+  emit_section("bss");
+  for (VarList *vl = prog->globals; vl; vl = vl->next) {
+    Var *var = vl->var;
+    if (var->initializer) continue;
+    emit_fmt(".align %d", var->ty->align);
+    emit_fmt("%s:", var->name);
+    emit_fmt("  .zero %d", var->ty->size);
+  }
+
+  emit_section("data");
+  for (VarList *vl = prog->globals; vl; vl = vl->next) {
+    Var *var = vl->var;
+    if (!var->initializer) continue;
+
+    emit_fmt(".align %d", var->ty->align);
+    emit_fmt("%s:", var->name);
+    for (Initializer *init = var->initializer; init; init = init->next) {
+      if (init->label) {
+        emit_fmt("  .quad %s%+ld", init->label, init->addend);
+      } else if (init->sz == 1) {
+        emit_fmt("  .byte %ld", init->val);
+      } else {
+        emit_fmt("  .%dbyte %ld", init->sz, init->val);
+      }
+    }
+  }
+}
+
+static void load_arg(Var *var, int idx) {
+  int sz = var->ty->size;
+  if (sz == 1) {
+    emit_fmt("  mov [rbp-%d], %s", var->offset, gArgReg1[idx]);
+  } else if (sz == 2) {
+    emit_fmt("  mov [rbp-%d], %s", var->offset, gArgReg2[idx]);
+  } else if (sz == 4) {
+    emit_fmt("  mov [rbp-%d], %s", var->offset, gArgReg4[idx]);
+  } else {
+    assert(sz == 8);
+    emit_fmt("  mov [rbp-%d], %s", var->offset, gArgReg8[idx]);
+  }
+}
+
+static void gen_text(Program *prog) {
+  emit_section("text");
+  for (Function *fn = prog->fns; fn; fn = fn->next) {
+    emit_symbol(STT_FUNC, fn->name, !fn->is_static);
+    gCtx->funcname = fn->name;
+
+    // Prologue
+    emit_fmt("  push rbp");
+    emit_fmt("  mov rbp, rsp");
+    emit_fmt("  sub rsp, %d", fn->stack_size);
+
+    // Save arg registers if function is variadic
+    if (fn->has_varargs) {
+      // Num of regular parameters to calculate gp_offset
+      int n = 0;
+      for (VarList *vl = fn->params; vl; vl = vl->next) {
+        n++;
+      }
+      // Register save area
+      emit_fmt("  mov [rbp-56], rdi");
+      emit_fmt("  mov [rbp-48], rsi");
+      emit_fmt("  mov [rbp-40], rdx");
+      emit_fmt("  mov [rbp-32], rcx");
+      emit_fmt("  mov [rbp-24], r8");
+      emit_fmt("  mov [rbp-16], r9");
+      // gp_offset
+      emit_fmt("  mov dword ptr [rbp-8], %d", n * 8);
+    }
+
+    // Push arguments to the stack
+    int i = 0;
+    for (VarList *vl = fn->params; vl; vl = vl->next) {
+      load_arg(vl->var, i++);
+    }
+
+    // Body
+    for (Node *node = fn->node; node; node = node->next) {
+      gen_node(node);
+    }
+
+    // Epilogue
+    emit_llabel("return", gCtx->funcname);
+    emit_fmt("  mov rsp, rbp");
+    emit_fmt("  pop rbp");
+    emit_fmt("  ret");
+  }
+}
+
+// Assign offsets to local variables.
+void gen_offsets(Program *prog) {
+  for (Function *fn = prog->fns; fn; fn = fn->next) {
+    int offset = fn->has_varargs ? 56 : 0;
+    for (VarList *vl = fn->locals; vl; vl = vl->next) {
+      Var *var = vl->var;
+      offset = align_to(offset, var->ty->align);
+      offset += var->ty->size;
+      var->offset = offset;
+    }
+    fn->stack_size = align_to(offset, 8);
+  }
+}
+
 static void gen_end() {
   if (!gCtx->dump_asm) {
-    write_elf();
+    elf_end();
   }
 }
 
@@ -861,10 +892,11 @@ void gen_prog(Program *prog, const char *path, bool dump_asm) {
   gCtx->outfp = path ? fopen(path, "wb") : stdout;
   if (!gCtx->outfp) error("cannot open %s (%s)", path, strerror(errno));
 
-  gen_header();
+  gen_start();
   gen_data(prog);
   gen_text(prog);
   gen_end();
+
   if (path) {
     fclose(gCtx->outfp);
   }
