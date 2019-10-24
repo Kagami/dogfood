@@ -1,9 +1,12 @@
 #include <assert.h>
 #include <errno.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/wait.h>
 #include "dfcc.h"
 
 static const char *gArgreg1[] = {"dil", "sil",  "dl",  "cl", "r8b", "r9b"};
@@ -12,11 +15,19 @@ static const char *gArgreg4[] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
 static const char *gArgreg8[] = {"rdi", "rsi", "rdx", "rcx", "r8",  "r9"};
 
 typedef struct {
+  uint8_t *data;
+  uint8_t *pos;
+  size_t size;
+} Section;
+
+typedef struct {
   FILE *outfp;
   int labelseq;
   int brkseq;
   int contseq;
   const char *funcname;
+  bool elf;
+  Section text;
 } GenContext;
 
 static GenContext *gCtx;
@@ -26,6 +37,14 @@ static void emit(const char *fmt, ...) {
   va_start(ap, fmt);
   vfprintf(gCtx->outfp, fmt, ap);
   va_end(ap);
+}
+
+static void emit_global(const char *name) {
+  if (gCtx->elf) {
+    emit("global %s\n", name);
+  } else {
+    emit(".global %s\n", name);
+  }
 }
 
 static void gen_node(Node *node);
@@ -107,7 +126,7 @@ static void store(Type *ty) {
   emit("  push rdi\n");
 }
 
-static void truncate(Type *ty) {
+static void cast_truncate(Type *ty) {
   emit("  pop rax\n");
 
   if (ty->kind == TY_BOOL) {
@@ -578,7 +597,7 @@ static void gen_node(Node *node) {
     return;
   case ND_CAST:
     gen_node(node->lhs);
-    truncate(node->ty);
+    cast_truncate(node->ty);
     return;
   default:
     break;
@@ -591,10 +610,13 @@ static void gen_node(Node *node) {
 
 static void gen_data(Program *prog) {
   for (VarList *vl = prog->globals; vl; vl = vl->next)
-    if (!vl->var->is_static)
-      emit(".global %s\n", vl->var->name);
+    if (!vl->var->is_static) {
+      emit_global(vl->var->name);
+    }
 
-  emit(".bss\n");
+  if (!gCtx->elf) {
+    emit(".bss\n");
+  }
 
   for (VarList *vl = prog->globals; vl; vl = vl->next) {
     Var *var = vl->var;
@@ -606,7 +628,9 @@ static void gen_data(Program *prog) {
     emit("  .zero %d\n", var->ty->size);
   }
 
-  emit(".data\n");
+  if (!gCtx->elf) {
+    emit(".data\n");
+  }
 
   for (VarList *vl = prog->globals; vl; vl = vl->next) {
     Var *var = vl->var;
@@ -642,11 +666,14 @@ static void load_arg(Var *var, int idx) {
 }
 
 static void gen_text(Program *prog) {
-  emit(".text\n");
+  if (!gCtx->elf) {
+    emit(".text\n");
+  }
 
   for (Function *fn = prog->fns; fn; fn = fn->next) {
-    if (!fn->is_static)
-      emit(".global %s\n", fn->name);
+    if (!fn->is_static) {
+      emit_global(fn->name);
+    }
     emit("%s:\n", fn->name);
     gCtx->funcname = fn->name;
 
@@ -704,16 +731,61 @@ void gen_offsets(Program *prog) {
   }
 }
 
+// Use nasm for partial codegen for now.
+static Section *nasm(const char *src) {
+  const char *tmp = "/tmp/dfcc.tmp";
+  pid_t pid = fork();
+  assert(pid >= 0);
+  if (pid == 0) {
+    char oarg[64] = { '-', 'o' }; strcat(oarg, tmp);
+    execlp("nasm", "nasm", "-felf64", oarg, src, (char*)NULL);
+    assert(false);
+  }
+  int status;
+  waitpid(pid, &status, 0);
+  assert(status >= 0);
+
+  Section *text = calloc(1, sizeof(Section));
+  FILE *fp = fopen(tmp, "rb");
+  assert(fp);
+  fseek(fp, 0, SEEK_END);
+  text->size = ftell(fp);
+  rewind(fp);
+
+  text->pos = text->data = malloc(text->size);
+  fread(text->data, 1, text->size, fp);
+  fclose(fp);
+  assert(unlink(tmp) == 0);
+  return text;
+}
+
+static void write_elf(const char *dst, const char *src) {
+  Section *text = nasm(src);
+  FILE *fp = fopen(dst, "wb");
+  if (!fp) error("cannot open %s (%s)", dst, strerror(errno));
+  fwrite(text->data, 1, text->size, fp);
+  fclose(fp);
+}
+
 // Generate code for the entire program.
-void gen_prog(Program *prog, const char *outpath) {
-  FILE *outfp = outpath ? fopen(outpath, "wb") : stdout;
-  if (!outfp) error("cannot open %s (%s)", outpath, strerror(errno));
-
+void gen_prog(Program *prog, const char *path) {
   gCtx = calloc(1, sizeof(GenContext));
-  gCtx->outfp = outfp;
   gCtx->labelseq = 1;
+  gCtx->outfp = path ? fopen(path, "wb") : stdout;
+  if (!gCtx->outfp) error("cannot open %s (%s)", path, strerror(errno));
+  if (path && strcmp(path, ".tmp2/test/elf.c.s") == 0) {
+    gCtx->elf = true;
+  }
 
-  emit(".intel_syntax noprefix\n");
+  if (!gCtx->elf) {
+    emit(".intel_syntax noprefix\n");
+  }
   gen_data(prog);
   gen_text(prog);
+  if (path) {
+    fclose(gCtx->outfp);
+  }
+  if (gCtx->elf) {
+    write_elf(".tmp2/test/elf.c.o", path);
+  }
 }

@@ -39,8 +39,10 @@ fulltest: clean stage1 stage2 test1 test2
 
 .tmp2/test/%: test/%.c stage1
 	@mkdir -p .tmp2/test
+	@rm -f .tmp2/$<.o
 	@./stage1 -I../libdfc/include -o .tmp2/$<.s $<
-	@$(CC) $(LDFLAGS) -o $@ .tmp2/$<.s
+	@[ -f .tmp2/$<.o ] || $(CC) -o .tmp2/$<.o -c .tmp2/$<.s
+	@$(CC) $(LDFLAGS) -o $@ .tmp2/$<.o
 	@$@
 
 clean:
