@@ -31,7 +31,6 @@ typedef int64_t Elf64_Sxword;
 typedef uint64_t Elf64_Addr;
 typedef uint64_t Elf64_Off;
 typedef uint16_t Elf64_Section;
-typedef Elf64_Half Elf64_Versym;
 
 typedef struct {
  unsigned char e_ident[EI_NIDENT];

@@ -18,7 +18,7 @@ stage2: $(OBJS2)
 test1: $(TEST1)
 	@printf " \e[32mOK\e[0m\n"
 
-test2: $(TEST2)
+test2: $(TEST2) .tmp2/test/elf
 	@printf " \e[32mOK\e[0m\n"
 
 fulltest: clean stage1 stage2 test1 test2
@@ -29,7 +29,7 @@ fulltest: clean stage1 stage2 test1 test2
 
 .tmp2/%.o: %.c stage1
 	@mkdir -p .tmp2
-	./stage1 -I../libdfc/include -o .tmp2/$<.s $<
+	./stage1 -S -I../libdfc/include -o .tmp2/$<.s $<
 	$(CC) $(CFLAGS) -o $@ -c .tmp2/$<.s
 
 .tmp1/test/%: test/%.c
@@ -39,11 +39,12 @@ fulltest: clean stage1 stage2 test1 test2
 
 .tmp2/test/%: test/%.c stage1
 	@mkdir -p .tmp2/test
-	@rm -f .tmp2/$<.o
-	@./stage1 -I../libdfc/include -o .tmp2/$<.s $<
-	@[ -f .tmp2/$<.o ] || $(CC) -o .tmp2/$<.o -c .tmp2/$<.s
-	@$(CC) $(LDFLAGS) -o $@ .tmp2/$<.o
+	@./stage1 -S -I../libdfc/include -o .tmp2/$<.s $<
+	@$(CC) $(LDFLAGS) -o $@ .tmp2/$<.s
 	@$@
+
+.tmp2/test/elf: test/.elf.c stage1
+	@./stage1 -I../libdfc/include -o .tmp2/$<.o $<
 
 clean:
 	rm -rf stage1 stage2 .tmp1 .tmp2

@@ -233,7 +233,7 @@ Program *parse(Token *token);
 //
 
 void gen_offsets(Program *prog);
-void gen_prog(Program *prog, const char *outpath);
+void gen_prog(Program *prog, const char *outpath, bool dump_asm);
 
 //
 // type.c

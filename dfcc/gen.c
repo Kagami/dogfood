@@ -6,8 +6,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <sys/wait.h>
 #include "dfcc.h"
 
 static const char *gArgreg1[] = {"dil", "sil",  "dl",  "cl", "r8b", "r9b"};
@@ -21,12 +19,12 @@ typedef struct {
 } Section;
 
 typedef struct {
+  bool dump_asm;
   FILE *outfp;
   int labelseq;
   int brkseq;
   int contseq;
   const char *funcname;
-  bool elf;
 } GenContext;
 
 static GenContext *gCtx;
@@ -57,11 +55,7 @@ static void emit(const char *fmt, ...) {
 }
 
 static void emit_global(const char *name) {
-  if (gCtx->elf) {
-    emit("global %s\n", name);
-  } else {
-    emit(".global %s\n", name);
-  }
+  emit(".global %s\n", name);
 }
 
 static void gen_node(Node *node);
@@ -625,13 +619,19 @@ static void gen_node(Node *node) {
   gen_binary(node);
 }
 
+static void gen_header() {
+  if (gCtx->dump_asm) {
+    emit(".intel_syntax noprefix\n");
+  }
+}
+
 static void gen_data(Program *prog) {
   for (VarList *vl = prog->globals; vl; vl = vl->next)
     if (!vl->var->is_static) {
       emit_global(vl->var->name);
     }
 
-  if (!gCtx->elf) {
+  if (gCtx->dump_asm) {
     emit(".bss\n");
   }
 
@@ -645,7 +645,7 @@ static void gen_data(Program *prog) {
     emit("  .zero %d\n", var->ty->size);
   }
 
-  if (!gCtx->elf) {
+  if (gCtx->dump_asm) {
     emit(".data\n");
   }
 
@@ -683,7 +683,7 @@ static void load_arg(Var *var, int idx) {
 }
 
 static void gen_text(Program *prog) {
-  if (!gCtx->elf) {
+  if (gCtx->dump_asm) {
     emit(".text\n");
   }
 
@@ -748,38 +748,7 @@ void gen_offsets(Program *prog) {
   }
 }
 
-// Use nasm for partial codegen for now.
-static Section *nasm(const char *src) {
-  const char *tmp = "/tmp/dfcc.tmp";
-  pid_t pid = fork();
-  assert(pid >= 0);
-  if (pid == 0) {
-    execlp("nasm", "nasm", "-o", tmp, src, (char*)NULL);
-    assert(false);
-  }
-  int status;
-  waitpid(pid, &status, 0);
-  assert(status >= 0);
-
-  Section *text = new_section();
-  FILE *fp = fopen(tmp, "rb");
-  assert(fp);
-  fseek(fp, 0, SEEK_END);
-  text->size = ftell(fp);
-  rewind(fp);
-
-  text->data = malloc(text->size);
-  fread(text->data, 1, text->size, fp);
-  fclose(fp);
-  assert(unlink(tmp) == 0);
-  return text;
-}
-
-static void write_elf(const char *dst, const char *src) {
-  Section *text = nasm(src);
-  FILE *fp = fopen(dst, "wb");
-  if (!fp) error("cannot open %s (%s)", dst, strerror(errno));
-
+static void write_elf() {
   // Main header
   Elf64_Ehdr elf_header = {
     {
@@ -839,6 +808,7 @@ static void write_elf(const char *dst, const char *src) {
   text_header.sh_type = SHT_PROGBITS;
   text_header.sh_flags = SHF_EXECINSTR | SHF_ALLOC;
   text_header.sh_addralign = 16;
+  Section *text = new_section();
 
   // Write symbols
   Section *strtab = new_section();
@@ -847,6 +817,7 @@ static void write_elf(const char *dst, const char *src) {
   section_writestr(strtab, "");
   section_write(symtab, &entry, sizeof(Elf64_Sym)); // emptry entry
   entry.st_name = section_writestr(strtab, "main");
+  entry.st_value = 0;
   entry.st_info = (STB_GLOBAL << 4) | STT_FUNC;
   entry.st_shndx = 4;
   section_write(symtab, &entry, sizeof(Elf64_Sym));
@@ -864,36 +835,37 @@ static void write_elf(const char *dst, const char *src) {
   text_header.sh_size = text->size;
 
   // Dump all
-  fwrite(&elf_header, 1, sizeof(elf_header), fp);
-  fwrite(&null_header, 1, sizeof(null_header), fp);
-  fwrite(&shstrtab_header, 1, sizeof(shstrtab_header), fp);
-  fwrite(&strtab_header, 1, sizeof(strtab_header), fp);
-  fwrite(&symtab_header, 1, sizeof(symtab_header), fp);
-  fwrite(&text_header, 1, sizeof(text_header), fp);
-  fwrite(shstrtab->data, 1, shstrtab->size, fp);
-  fwrite(strtab->data, 1, strtab->size, fp);
-  fwrite(symtab->data, 1, symtab->size, fp);
-  fwrite(text->data, 1, text->size, fp);
-  fclose(fp);
+  fwrite(&elf_header, 1, sizeof(elf_header), gCtx->outfp);
+  fwrite(&null_header, 1, sizeof(null_header), gCtx->outfp);
+  fwrite(&shstrtab_header, 1, sizeof(shstrtab_header), gCtx->outfp);
+  fwrite(&strtab_header, 1, sizeof(strtab_header), gCtx->outfp);
+  fwrite(&symtab_header, 1, sizeof(symtab_header), gCtx->outfp);
+  fwrite(&text_header, 1, sizeof(text_header), gCtx->outfp);
+  fwrite(shstrtab->data, 1, shstrtab->size, gCtx->outfp);
+  fwrite(strtab->data, 1, strtab->size, gCtx->outfp);
+  fwrite(symtab->data, 1, symtab->size, gCtx->outfp);
+  fwrite(text->data, 1, text->size, gCtx->outfp);
+}
+
+static void gen_end() {
+  if (!gCtx->dump_asm) {
+    write_elf();
+  }
 }
 
 // Generate code for the entire program.
-void gen_prog(Program *prog, const char *path) {
+void gen_prog(Program *prog, const char *path, bool dump_asm) {
   gCtx = calloc(1, sizeof(GenContext));
+  gCtx->dump_asm = dump_asm;
   gCtx->labelseq = 1;
   gCtx->outfp = path ? fopen(path, "wb") : stdout;
   if (!gCtx->outfp) error("cannot open %s (%s)", path, strerror(errno));
-  if (path && strcmp(path, ".tmp2/test/elf.c.s") == 0) {
-    gCtx->elf = true;
-  }
 
-  emit(gCtx->elf ? "bits 64\n" : ".intel_syntax noprefix\n");
+  gen_header();
   gen_data(prog);
   gen_text(prog);
+  gen_end();
   if (path) {
     fclose(gCtx->outfp);
-  }
-  if (gCtx->elf) {
-    write_elf(".tmp2/test/elf.c.o", path);
   }
 }

@@ -135,7 +135,7 @@ int main(int argc, char **argv) {
 
   // Generate code.
   gen_offsets(prog);
-  gen_prog(prog, opts->is_stdout ? NULL : opts->outpath);
+  gen_prog(prog, opts->is_stdout ? NULL : opts->outpath, opts->dump_asm);
 
   return 0;
 }
