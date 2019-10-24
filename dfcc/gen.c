@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <elf.h>
 #include <errno.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -16,7 +17,6 @@ static const char *gArgreg8[] = {"rdi", "rsi", "rdx", "rcx", "r8",  "r9"};
 
 typedef struct {
   uint8_t *data;
-  uint8_t *pos;
   size_t size;
 } Section;
 
@@ -27,10 +27,27 @@ typedef struct {
   int contseq;
   const char *funcname;
   bool elf;
-  Section text;
 } GenContext;
 
 static GenContext *gCtx;
+
+static Section *new_section() {
+  Section *s = calloc(1, sizeof(Section));
+  return s;
+}
+
+static size_t section_write(Section *s, const void *chunk, size_t chunk_size) {
+  // TODO(Kagami): use capacity
+  s->data = realloc(s->data, s->size + chunk_size);
+  memcpy(s->data + s->size, chunk, chunk_size);
+  const size_t old_size = s->size;
+  s->size += chunk_size;
+  return old_size;
+}
+
+static size_t section_writestr(Section *s, const char *str) {
+  return section_write(s, str, strlen(str) + 1);
+}
 
 static void emit(const char *fmt, ...) {
   va_list ap;
@@ -737,22 +754,21 @@ static Section *nasm(const char *src) {
   pid_t pid = fork();
   assert(pid >= 0);
   if (pid == 0) {
-    char oarg[64] = { '-', 'o' }; strcat(oarg, tmp);
-    execlp("nasm", "nasm", "-felf64", oarg, src, (char*)NULL);
+    execlp("nasm", "nasm", "-o", tmp, src, (char*)NULL);
     assert(false);
   }
   int status;
   waitpid(pid, &status, 0);
   assert(status >= 0);
 
-  Section *text = calloc(1, sizeof(Section));
+  Section *text = new_section();
   FILE *fp = fopen(tmp, "rb");
   assert(fp);
   fseek(fp, 0, SEEK_END);
   text->size = ftell(fp);
   rewind(fp);
 
-  text->pos = text->data = malloc(text->size);
+  text->data = malloc(text->size);
   fread(text->data, 1, text->size, fp);
   fclose(fp);
   assert(unlink(tmp) == 0);
@@ -763,6 +779,100 @@ static void write_elf(const char *dst, const char *src) {
   Section *text = nasm(src);
   FILE *fp = fopen(dst, "wb");
   if (!fp) error("cannot open %s (%s)", dst, strerror(errno));
+
+  // Main header
+  Elf64_Ehdr elf_header = {
+    {
+      ELFMAG0, ELFMAG1, ELFMAG2, ELFMAG3,
+      ELFCLASS64,
+      ELFDATA2LSB,
+      EV_CURRENT,
+      ELFOSABI_SYSV,
+      0, // ABI version
+      0, // padding
+      EI_NIDENT,
+    },
+    ET_REL,
+    EM_X86_64,
+    EV_CURRENT,
+    0, // entry point address
+    0, // program header offset
+    sizeof(Elf64_Ehdr), // section header offset
+    0, // flags
+    sizeof(Elf64_Ehdr), // ELF header size
+    0, // program header size
+    0, // program headers number
+    sizeof(Elf64_Shdr), // section header size
+    0, // section headers number
+    0, // shstrtab index
+  };
+
+  // Empty section
+  Elf64_Shdr null_header = { 0 };
+  Section *shstrtab = new_section();
+  section_writestr(shstrtab, "");
+
+  // Section names section
+  Elf64_Shdr shstrtab_header = { 0 };
+  shstrtab_header.sh_name = section_writestr(shstrtab, ".shstrtab");
+  shstrtab_header.sh_type = SHT_STRTAB;
+  shstrtab_header.sh_addralign = 1;
+
+  // Symbol names section
+  Elf64_Shdr strtab_header = { 0 };
+  strtab_header.sh_name = section_writestr(shstrtab, ".strtab");
+  strtab_header.sh_type = SHT_STRTAB;
+  strtab_header.sh_addralign = 1;
+
+  // Symbol section
+  Elf64_Shdr symtab_header = { 0 };
+  symtab_header.sh_name = section_writestr(shstrtab, ".symtab");
+  symtab_header.sh_type = SHT_SYMTAB;
+  symtab_header.sh_link = 2;
+  symtab_header.sh_info = 1;
+  symtab_header.sh_addralign = 8;
+  symtab_header.sh_entsize = sizeof(Elf64_Sym);
+
+  // Text section
+  Elf64_Shdr text_header = { 0 };
+  text_header.sh_name = section_writestr(shstrtab, ".text");
+  text_header.sh_type = SHT_PROGBITS;
+  text_header.sh_flags = SHF_EXECINSTR | SHF_ALLOC;
+  text_header.sh_addralign = 16;
+
+  // Write symbols
+  Section *strtab = new_section();
+  Section *symtab = new_section();
+  Elf64_Sym entry = { 0 };
+  section_writestr(strtab, "");
+  section_write(symtab, &entry, sizeof(Elf64_Sym)); // emptry entry
+  entry.st_name = section_writestr(strtab, "main");
+  entry.st_info = (STB_GLOBAL << 4) | STT_FUNC;
+  entry.st_shndx = 4;
+  section_write(symtab, &entry, sizeof(Elf64_Sym));
+
+  // Fix offsets
+  elf_header.e_shnum = 5;
+  elf_header.e_shstrndx = 1;
+  shstrtab_header.sh_offset = sizeof(Elf64_Ehdr) + elf_header.e_shnum * sizeof(Elf64_Shdr);
+  shstrtab_header.sh_size = shstrtab->size;
+  strtab_header.sh_offset = shstrtab_header.sh_offset + shstrtab_header.sh_size;
+  strtab_header.sh_size = strtab->size;
+  symtab_header.sh_offset = strtab_header.sh_offset + strtab_header.sh_size;
+  symtab_header.sh_size = symtab->size;
+  text_header.sh_offset = symtab_header.sh_offset + symtab_header.sh_size;
+  text_header.sh_size = text->size;
+
+  // Dump all
+  fwrite(&elf_header, 1, sizeof(elf_header), fp);
+  fwrite(&null_header, 1, sizeof(null_header), fp);
+  fwrite(&shstrtab_header, 1, sizeof(shstrtab_header), fp);
+  fwrite(&strtab_header, 1, sizeof(strtab_header), fp);
+  fwrite(&symtab_header, 1, sizeof(symtab_header), fp);
+  fwrite(&text_header, 1, sizeof(text_header), fp);
+  fwrite(shstrtab->data, 1, shstrtab->size, fp);
+  fwrite(strtab->data, 1, strtab->size, fp);
+  fwrite(symtab->data, 1, symtab->size, fp);
   fwrite(text->data, 1, text->size, fp);
   fclose(fp);
 }
@@ -777,9 +887,7 @@ void gen_prog(Program *prog, const char *path) {
     gCtx->elf = true;
   }
 
-  if (!gCtx->elf) {
-    emit(".intel_syntax noprefix\n");
-  }
+  emit(gCtx->elf ? "bits 64\n" : ".intel_syntax noprefix\n");
   gen_data(prog);
   gen_text(prog);
   if (path) {
