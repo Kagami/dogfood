@@ -8,10 +8,36 @@
 #include <string.h>
 #include "dfcc.h"
 
+// [ u4 width ] [ u4 base ]
+// [0001][0000] AL
+// [0010][0000] AX
+// [0100][0000] EAX
+// [1000][0000] RAX
 typedef enum {
-  RAX, RCX, RDX, RBX, RSP, RBP, RSI, RDI,
+  RAX = 1 << 7, RCX, RDX, RBX, RSP, RBP, RSI, RDI,
   R8, R9, R10, R11, R12, R13, R14, R15,
 } Reg;
+
+static const Reg gArgRegs[] = {RDI, RSI, RDX, RCX, R8, R9};
+
+static const char *gRegNames[] = {
+  "al",   "ax",   "eax",  "rax",
+  "cl",   "cx",   "ecx",  "rcx",
+  "dl",   "dx",   "edx",  "rdx",
+  "bl",   "bx",   "ebx",  "rbx",
+  "spl",  "sp",   "esp",  "rsp",
+  "bpl",  "bp",   "ebp",  "rbp",
+  "sil",  "si",   "esi",  "rsi",
+  "dil",  "di",   "edi",  "rdi",
+  "r8b",  "r8w",  "r8d",  "r8",
+  "r9b",  "r9w",  "r9d",  "r9",
+  "r10b", "r10w", "r10d", "r10",
+  "r11b", "r11w", "r11d", "r11",
+  "r12b", "r12w", "r12d", "r12",
+  "r13b", "r13w", "r13d", "r13",
+  "r14b", "r14w", "r14d", "r14",
+  "r15b", "r15w", "r15d", "r15",
+};
 
 typedef enum {
   OP_NONE,
@@ -70,11 +96,6 @@ typedef struct {
 } GenContext;
 
 static GenContext *gCtx;
-
-static const char *gArgReg1[] = {"dil", "sil",  "dl",  "cl", "r8b", "r9b"};
-static const char *gArgReg2[] = { "di",  "si",  "dx",  "cx", "r8w", "r9w"};
-static const char *gArgReg4[] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
-static const char *gArgReg8[] = {"rdi", "rsi", "rdx", "rcx", "r8",  "r9"};
 
 //
 // Helpers
@@ -208,26 +229,34 @@ static void elf_end() {
 // Encoding
 //
 
+// Pack several parameters of register/memory offset into one integer.
+// TODO(Kagami): Macro functions/inline?
+// TODO(Kagami): Or pass as a struct instead?
+
+// [ u4 width ] [ u4 base ]
+static int reg_width(Reg reg) { return (reg>>4)&0xf; }
+static Reg reg_base(Reg reg) { return reg&0xf; }
+static Reg regw(Reg base, int width) { return width<<4 | (base&0xf); }
+static Reg argregw(int idx, int width) { return regw(gArgRegs[idx], width); }
+
+// [ u8 width ] [ u8 reg ] [ i32 offset ]
+static int off_width(uint64_t arg) { return (arg>>40)&0xff; }
+static Reg off_reg(uint64_t arg) { return (arg>>32)&0xff; }
+static int off_offset(uint64_t arg) { return arg; }
+static uint64_t offw(Reg reg, int offset, int width) {
+  return ((uint64_t)width&0xff)<<40 | ((uint64_t)reg&0xff)<<32 | (offset&0xffffffff);
+}
+static uint64_t off(Reg reg, int offset) { return offw(reg, offset, 0); }
+
 static const char *reg2s(Reg reg) {
-  switch (reg) {
-  case RAX: return "rax";
-  case RCX: return "rcx";
-  case RDX: return "rdx";
-  case RBX: return "rbx";
-  case RSP: return "rsp";
-  case RBP: return "rbp";
-  case RSI: return "rsi";
-  case RDI: return "rdi";
-  case R8:  return "r8";
-  case R9:  return "r9";
-  case R10: return "r10";
-  case R11: return "r11";
-  case R12: return "r12";
-  case R13: return "r13";
-  case R14: return "r14";
-  case R15: return "r15";
+  int i = reg_base(reg);
+  int j = 0;
+  switch (reg_width(reg)) {
+  case 2: j = 1; break;
+  case 4: j = 2; break;
+  case 8: j = 3; break;
   }
-  return NULL;
+  return gRegNames[i*4 + j];
 }
 
 static const char *i2s(Instr instr) {
@@ -237,8 +266,8 @@ static const char *i2s(Instr instr) {
   case I_CALL:  return "call";
   case I_CMP:   return "cmp";
   case I_CDQ:   return "cdq";
-  case I_DIV:  return "div";
-  case I_IDIV: return "idiv";
+  case I_DIV:   return "div";
+  case I_IDIV:  return "idiv";
   case I_Jcc:   return "jcc";
   case I_JMP:   return "jmp";
   case I_LEA:   return "lea";
@@ -264,30 +293,19 @@ static const char *i2s(Instr instr) {
   return NULL;
 }
 
-// TODO(Kagami): Macro function.
-static uint64_t offw(Reg reg, int offset, int width) {
-  return ((uint64_t)width&0xff)<<40 | ((uint64_t)reg&0xff)<<32 | (offset&0xffffffff);
-}
-static uint64_t off(Reg reg, int offset) {
-  return offw(reg, offset, 0);
-}
-#define off_width  ((int)(arg1>>40)&0xff)
-#define off_reg    ((int)(arg1>>32)&0xff)
-#define off_offset ((int)arg1)
-
-static const char *off2s(uint64_t arg1) {
+static const char *off2s(uint64_t arg) {
   static char my_buf[100];
   const char *wprefix = "";
-  switch (off_width) {
+  switch (off_width(arg)) {
   case 8: wprefix = "qword ptr "; break;
   case 4: wprefix = "dword ptr "; break;
   case 2: wprefix = "word ptr "; break;
   case 1: wprefix = "byte ptr "; break;
   }
-  if (off_offset) {
-    sprintf(my_buf, "%s[%s%+d]", wprefix, reg2s(off_reg), off_offset);
+  if (off_offset(arg)) {
+    sprintf(my_buf, "%s[%s%+d]", wprefix, reg2s(off_reg(arg)), off_offset(arg));
   } else {
-    sprintf(my_buf, "%s[%s]", wprefix, reg2s(off_reg));
+    sprintf(my_buf, "%s[%s]", wprefix, reg2s(off_reg(arg)));
   }
   return my_buf;
 }
@@ -873,7 +891,7 @@ static void gen_node(Node *node) {
     }
     // Assign arguments to corresponding register
     for (int i = nargs - 1; i >= 0; i--) {
-      emit_fmt("  pop %s", gArgReg8[i]);
+      emit1(I_POP, OP_REG, argregw(i, 8));
     }
 
     if (strcmp(node->funcname, "__builtin_va_start") == 0) {
@@ -976,17 +994,7 @@ static void gen_data(Program *prog) {
 }
 
 static void load_arg(Var *var, int idx) {
-  int sz = var->ty->size;
-  if (sz == 1) {
-    emit_fmt("  mov [rbp-%d], %s", var->offset, gArgReg1[idx]);
-  } else if (sz == 2) {
-    emit_fmt("  mov [rbp-%d], %s", var->offset, gArgReg2[idx]);
-  } else if (sz == 4) {
-    emit_fmt("  mov [rbp-%d], %s", var->offset, gArgReg4[idx]);
-  } else {
-    assert(sz == 8);
-    emit_fmt("  mov [rbp-%d], %s", var->offset, gArgReg8[idx]);
-  }
+  emit2(I_MOV, OP_MEM_REG, off(RBP, -var->offset), argregw(idx, var->ty->size));
 }
 
 static void gen_text(Program *prog) {
