@@ -8,6 +8,53 @@
 #include <string.h>
 #include "dfcc.h"
 
+typedef enum {
+  RAX, RCX, RDX, RBX, RSP, RBP, RSI, RDI,
+  R8, R9, R10, R11, R12, R13, R14, R15,
+} Reg;
+
+typedef enum {
+  OP_NONE,
+  OP_REG,
+  OP_REG_REG,
+  OP_IMM,
+  OP_REG_IMM,
+  OP_MEM_REG,
+  OP_MEM_IMM,
+} Op;
+
+// Borrowed from lacc ((c) 2015 Lars Kirkholt Melhus, MIT)
+typedef enum {
+  I_ADD = 0,
+  I_AND = I_ADD + 2,
+  I_CALL = I_AND + 3,
+  I_CMP = I_CALL + 2,
+  I_CDQ = I_CMP + 3,
+  I_DIV = I_CDQ + 2,
+  I_IDIV = I_DIV + 1,
+  I_Jcc = I_IDIV + 1,
+  I_JMP = I_Jcc + 1,
+  I_LEA = I_JMP + 1,
+  I_LEAVE = I_LEA + 1,
+  I_MOV = I_LEAVE + 1,
+  I_MOVS = I_MOV + 5,
+  I_MOVSX = I_MOVS + 1,
+  I_MOVZX = I_MOVSX + 2,
+  I_MUL = I_MOVZX + 2,
+  I_NOT = I_MUL + 1,
+  I_OR = I_NOT + 1,
+  I_POP = I_OR + 2,
+  I_PUSH = I_POP + 1,
+  I_RET = I_PUSH + 3,
+  I_SAR = I_RET + 1,
+  I_SETcc = I_SAR + 2,
+  I_SHL = I_SETcc + 1,
+  I_SHR = I_SHL + 2,
+  I_SUB = I_SHR + 2,
+  I_TEST = I_SUB + 2,
+  I_XOR = I_TEST + 2,
+} Instr;
+
 typedef struct {
   uint8_t *data;
   size_t size;
@@ -161,6 +208,90 @@ static void elf_end() {
 // Encoding
 //
 
+static const char *reg2s(Reg reg) {
+  switch (reg) {
+  case RAX: return "rax";
+  case RCX: return "rcx";
+  case RDX: return "rdx";
+  case RBX: return "rbx";
+  case RSP: return "rsp";
+  case RBP: return "rbp";
+  case RSI: return "rsi";
+  case RDI: return "rdi";
+  case R8:  return "r8";
+  case R9:  return "r9";
+  case R10: return "r10";
+  case R11: return "r11";
+  case R12: return "r12";
+  case R13: return "r13";
+  case R14: return "r14";
+  case R15: return "r15";
+  }
+  return NULL;
+}
+
+static const char *i2s(Instr instr) {
+  switch (instr) {
+  case I_ADD:   return "add";
+  case I_AND:   return "and";
+  case I_CALL:  return "call";
+  case I_CMP:   return "cmp";
+  case I_CDQ:   return "cdq";
+  case I_DIV:  return "div";
+  case I_IDIV: return "idiv";
+  case I_Jcc:   return "jcc";
+  case I_JMP:   return "jmp";
+  case I_LEA:   return "lea";
+  case I_LEAVE: return "leave";
+  case I_MOV:   return "mov";
+  case I_MOVS:  return "movs";
+  case I_MOVSX: return "movsx";
+  case I_MOVZX: return "movzx";
+  case I_MUL:   return "mul";
+  case I_NOT:   return "not";
+  case I_OR:    return "or";
+  case I_POP:   return "pop";
+  case I_PUSH:  return "push";
+  case I_RET:   return "ret";
+  case I_SAR:   return "sar";
+  case I_SETcc: return "setcc";
+  case I_SHL:   return "shl";
+  case I_SHR:   return "shr";
+  case I_SUB:   return "sub";
+  case I_TEST:  return "test";
+  case I_XOR:   return "xor";
+  }
+  return NULL;
+}
+
+// TODO(Kagami): Macro function.
+static uint64_t offw(Reg reg, int offset, int width) {
+  return ((uint64_t)width&0xff)<<40 | ((uint64_t)reg&0xff)<<32 | (offset&0xffffffff);
+}
+static uint64_t off(Reg reg, int offset) {
+  return offw(reg, offset, 0);
+}
+#define off_width  ((int)(arg1>>40)&0xff)
+#define off_reg    ((int)(arg1>>32)&0xff)
+#define off_offset ((int)arg1)
+
+static const char *off2s(uint64_t arg1) {
+  static char my_buf[100];
+  const char *wprefix = "";
+  switch (off_width) {
+  case 8: wprefix = "qword ptr "; break;
+  case 4: wprefix = "dword ptr "; break;
+  case 2: wprefix = "word ptr "; break;
+  case 1: wprefix = "byte ptr "; break;
+  }
+  if (off_offset) {
+    sprintf(my_buf, "%s[%s%+d]", wprefix, reg2s(off_reg), off_offset);
+  } else {
+    sprintf(my_buf, "%s[%s]", wprefix, reg2s(off_reg));
+  }
+  return my_buf;
+}
+
 static void emit_fmt(const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
@@ -188,10 +319,52 @@ static void emit_section(const char *name) {
 }
 
 static void emit_symbol(uint8_t sym_type, const char *sym_name, bool is_global) {
-  if (is_global) {
-    emit_global(sym_name);
+  if (gCtx->dump_asm) {
+    if (is_global) {
+      emit_global(sym_name);
+    }
+    emit_fmt("%s:", sym_name);
   }
-  emit_fmt("%s:", sym_name);
+}
+
+// TODO(Kagami): Implement with va_arg.
+static void emit2(Instr instr, Op op, uint64_t arg1, uint64_t arg2) {
+  if (gCtx->dump_asm) {
+    switch (op) {
+    case OP_NONE:
+      emit_fmt("  %s", i2s(instr));
+      break;
+    case OP_REG:
+      emit_fmt("  %s %s", i2s(instr), reg2s(arg1));
+      break;
+    case OP_REG_REG:
+      emit_fmt("  %s %s, %s", i2s(instr), reg2s(arg1), reg2s(arg2));
+      break;
+    case OP_IMM:
+      emit_fmt("  %s %d", i2s(instr), arg1);
+      break;
+    case OP_REG_IMM:
+      emit_fmt("  %s %s, %d", i2s(instr), reg2s(arg1), arg2);
+      break;
+    case OP_MEM_REG:
+      emit_fmt("  %s %s, %s", i2s(instr), off2s(arg1), reg2s(arg2));
+      break;
+    case OP_MEM_IMM:
+      emit_fmt("  %s %s, %d", i2s(instr), off2s(arg1), arg2);
+      break;
+    default:
+      assert(false);
+    }
+  } else {
+  }
+}
+
+static void emit1(Instr instr, Op op, int arg) {
+  emit2(instr, op, arg, 0);
+}
+
+static void emit0(Instr instr) {
+  emit2(instr, OP_NONE, 0, 0);
 }
 
 //
@@ -823,26 +996,24 @@ static void gen_text(Program *prog) {
     gCtx->funcname = fn->name;
 
     // Prologue
-    emit_fmt("  push rbp");
-    emit_fmt("  mov rbp, rsp");
-    emit_fmt("  sub rsp, %d", fn->stack_size);
+    emit1(I_PUSH, OP_REG, RBP);
+    emit2(I_MOV, OP_REG_REG, RBP, RSP);
+    emit2(I_SUB, OP_REG_IMM, RSP, fn->stack_size);
 
     // Save arg registers if function is variadic
     if (fn->has_varargs) {
-      // Num of regular parameters to calculate gp_offset
+      // Num of regular params to calculate gp_offset
       int n = 0;
-      for (VarList *vl = fn->params; vl; vl = vl->next) {
-        n++;
-      }
+      for (VarList *vl = fn->params; vl; vl = vl->next) { n++; }
       // Register save area
-      emit_fmt("  mov [rbp-56], rdi");
-      emit_fmt("  mov [rbp-48], rsi");
-      emit_fmt("  mov [rbp-40], rdx");
-      emit_fmt("  mov [rbp-32], rcx");
-      emit_fmt("  mov [rbp-24], r8");
-      emit_fmt("  mov [rbp-16], r9");
+      emit2(I_MOV, OP_MEM_REG, off(RBP, -56), RDI);
+      emit2(I_MOV, OP_MEM_REG, off(RBP, -48), RSI);
+      emit2(I_MOV, OP_MEM_REG, off(RBP, -40), RDX);
+      emit2(I_MOV, OP_MEM_REG, off(RBP, -32), RCX);
+      emit2(I_MOV, OP_MEM_REG, off(RBP, -24), R8);
+      emit2(I_MOV, OP_MEM_REG, off(RBP, -16), R9);
       // gp_offset
-      emit_fmt("  mov dword ptr [rbp-8], %d", n * 8);
+      emit2(I_MOV, OP_MEM_IMM, offw(RBP, -8, 4), n*8);
     }
 
     // Push arguments to the stack
@@ -858,9 +1029,9 @@ static void gen_text(Program *prog) {
 
     // Epilogue
     emit_llabel("return", gCtx->funcname);
-    emit_fmt("  mov rsp, rbp");
-    emit_fmt("  pop rbp");
-    emit_fmt("  ret");
+    emit2(I_MOV, OP_REG_REG, RSP, RBP);
+    emit1(I_POP, OP_REG, RBP);
+    emit0(I_RET);
   }
 }
 
