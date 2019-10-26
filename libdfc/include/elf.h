@@ -19,9 +19,11 @@
 #define SHF_ALLOC (1 << 1)
 #define SHF_EXECINSTR (1 << 2)
 
+#define STB_LOCAL 0
 #define STB_GLOBAL 1
 
 #define STT_FUNC 2
+#define STT_SECTION 3
 
 typedef uint16_t Elf64_Half;
 typedef uint32_t Elf64_Word;

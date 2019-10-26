@@ -60,15 +60,11 @@ typedef enum {
   I_CALL = I_AND + 3,
   I_CMP = I_CALL + 2,
   I_CQO = I_CMP + 3,
-  I_DIV = I_CQO + 2,
-  I_IDIV = I_DIV + 1,
-  I_Jcc = I_IDIV + 1,
-  I_JMP = I_Jcc + 1,
+  I_IDIV = I_CQO + 1,
+  I_JMP = I_IDIV + 1,
   I_LEA = I_JMP + 1,
-  I_LEAVE = I_LEA + 1,
-  I_MOV = I_LEAVE + 1,
-  I_MOVS = I_MOV + 5,
-  I_MOVSX = I_MOVS + 1,
+  I_MOV = I_LEA + 1,
+  I_MOVSX = I_MOV + 5,
   I_MOVZX = I_MOVSX + 2,
   I_IMUL = I_MOVZX + 2,
   I_NOT = I_IMUL + 1,
@@ -79,20 +75,32 @@ typedef enum {
   I_SAR = I_RET + 1,
   I_SETcc = I_SAR + 2,
   I_SHL = I_SETcc + 1,
-  I_SHR = I_SHL + 2,
-  I_SUB = I_SHR + 2,
-  I_TEST = I_SUB + 2,
-  I_XOR = I_TEST + 2,
+  I_SUB = I_SHL + 2,
+  I_XOR = I_SUB + 2,
 } Instr;
+
+// Binary code for single instruction, 15 bytes max
+typedef struct {
+  uint8_t buf[15];
+  char len;
+} Code;
 
 typedef struct {
   uint8_t *data;
   size_t size;
 } Section;
 
+#define S_NUM 5
+#define SID_SHSTRTAB 1
+#define SID_STRTAB 2
+#define SID_SYMTAB 3
+#define SID_TEXT 4
+
 typedef struct {
   bool dump_asm;
   FILE *outfp;
+  Elf64_Shdr shdr[S_NUM];
+  Section *sect[S_NUM];
   int labelseq;
   int brkseq;
   int contseq;
@@ -123,14 +131,29 @@ static size_t section_writestr(Section *s, const char *str) {
   return section_write(s, str, strlen(str) + 1);
 }
 
+static void write_data(const void *data, size_t data_size) {
+  fwrite(data, 1, data_size, gCtx->outfp);
+}
+
 //
 // ELF
 //
 
-static void elf_start() {
+static void elf_symbol(int sym_type, const char *sym_name, bool is_global) {
+  Elf64_Sym entry = { 0 };
+  entry.st_name = section_writestr(gCtx->sect[SID_STRTAB], sym_name);
+  entry.st_value = 0;
+  entry.st_info = (is_global ? STB_GLOBAL : STB_LOCAL) << 4 | sym_type;
+  entry.st_shndx = 4;
+  section_write(gCtx->sect[SID_SYMTAB], &entry, sizeof(Elf64_Sym));
 }
 
-static void elf_end() {
+static void elf_text(Code *code) {
+  assert(code->len <= 15);
+  section_write(gCtx->sect[SID_TEXT], code->buf, code->len);
+}
+
+static void elf_start() {
   // Main header
   Elf64_Ehdr elf_header = {
     {
@@ -154,79 +177,73 @@ static void elf_end() {
     0, // program header size
     0, // program headers number
     sizeof(Elf64_Shdr), // section header size
-    0, // section headers number
-    0, // shstrtab index
+    S_NUM, // section headers number
+    SID_SHSTRTAB, // shstrtab index
   };
+  write_data(&elf_header, sizeof(elf_header));
+
+  // Create sections
+  for (int i = 1; i < S_NUM; i++) {
+    gCtx->sect[i] = new_section();
+  }
+  Section *shstrtab = gCtx->sect[SID_SHSTRTAB];
 
   // Empty section
-  Elf64_Shdr null_header = { 0 };
-  Section *shstrtab = new_section();
   section_writestr(shstrtab, "");
 
   // Section names section
-  Elf64_Shdr shstrtab_header = { 0 };
-  shstrtab_header.sh_name = section_writestr(shstrtab, ".shstrtab");
-  shstrtab_header.sh_type = SHT_STRTAB;
-  shstrtab_header.sh_addralign = 1;
+  Elf64_Shdr *shstrtab_header = &gCtx->shdr[SID_SHSTRTAB];
+  shstrtab_header->sh_name = section_writestr(shstrtab, ".shstrtab");
+  shstrtab_header->sh_type = SHT_STRTAB;
+  shstrtab_header->sh_addralign = 1;
 
   // Symbol names section
-  Elf64_Shdr strtab_header = { 0 };
-  strtab_header.sh_name = section_writestr(shstrtab, ".strtab");
-  strtab_header.sh_type = SHT_STRTAB;
-  strtab_header.sh_addralign = 1;
+  Elf64_Shdr *strtab_header = &gCtx->shdr[SID_STRTAB];
+  strtab_header->sh_name = section_writestr(shstrtab, ".strtab");
+  strtab_header->sh_type = SHT_STRTAB;
+  strtab_header->sh_addralign = 1;
 
   // Symbol section
-  Elf64_Shdr symtab_header = { 0 };
-  symtab_header.sh_name = section_writestr(shstrtab, ".symtab");
-  symtab_header.sh_type = SHT_SYMTAB;
-  symtab_header.sh_link = 2;
-  symtab_header.sh_info = 1;
-  symtab_header.sh_addralign = 8;
-  symtab_header.sh_entsize = sizeof(Elf64_Sym);
+  Elf64_Shdr *symtab_header = &gCtx->shdr[SID_SYMTAB];
+  symtab_header->sh_name = section_writestr(shstrtab, ".symtab");
+  symtab_header->sh_type = SHT_SYMTAB;
+  symtab_header->sh_link = SID_STRTAB;
+  symtab_header->sh_info = 2; // FIXME
+  symtab_header->sh_addralign = 8;
+  symtab_header->sh_entsize = sizeof(Elf64_Sym);
+  // Null symbol
+  Elf64_Sym null_entry = { 0 };
+  section_writestr(gCtx->sect[SID_STRTAB], "");
+  section_write(gCtx->sect[SID_SYMTAB], &null_entry, sizeof(Elf64_Sym));
+  // Text section symbol
+  elf_symbol(STT_SECTION, "", false);
 
   // Text section
-  Elf64_Shdr text_header = { 0 };
-  text_header.sh_name = section_writestr(shstrtab, ".text");
-  text_header.sh_type = SHT_PROGBITS;
-  text_header.sh_flags = SHF_EXECINSTR | SHF_ALLOC;
-  text_header.sh_addralign = 16;
-  Section *text = new_section();
+  Elf64_Shdr *text_header = &gCtx->shdr[SID_TEXT];
+  text_header->sh_name = section_writestr(shstrtab, ".text");
+  text_header->sh_type = SHT_PROGBITS;
+  text_header->sh_flags = SHF_EXECINSTR | SHF_ALLOC;
+  text_header->sh_addralign = 16;
 
-  // Write symbols
-  Section *strtab = new_section();
-  Section *symtab = new_section();
-  Elf64_Sym entry = { 0 };
-  section_writestr(strtab, "");
-  section_write(symtab, &entry, sizeof(Elf64_Sym)); // emptry entry
-  entry.st_name = section_writestr(strtab, "main");
-  entry.st_value = 0;
-  entry.st_info = (STB_GLOBAL << 4) | STT_FUNC;
-  entry.st_shndx = 4;
-  section_write(symtab, &entry, sizeof(Elf64_Sym));
+  // Fix first offset
+  gCtx->shdr[1].sh_offset = sizeof(Elf64_Ehdr) + S_NUM * sizeof(Elf64_Shdr);
+  gCtx->shdr[1].sh_size = gCtx->sect[1]->size;
+}
 
+static void elf_end() {
   // Fix offsets
-  elf_header.e_shnum = 5;
-  elf_header.e_shstrndx = 1;
-  shstrtab_header.sh_offset = sizeof(Elf64_Ehdr) + elf_header.e_shnum * sizeof(Elf64_Shdr);
-  shstrtab_header.sh_size = shstrtab->size;
-  strtab_header.sh_offset = shstrtab_header.sh_offset + shstrtab_header.sh_size;
-  strtab_header.sh_size = strtab->size;
-  symtab_header.sh_offset = strtab_header.sh_offset + strtab_header.sh_size;
-  symtab_header.sh_size = symtab->size;
-  text_header.sh_offset = symtab_header.sh_offset + symtab_header.sh_size;
-  text_header.sh_size = text->size;
+  for (int i = 2; i < S_NUM; i++) {
+    gCtx->shdr[i].sh_offset = gCtx->shdr[i-1].sh_offset + gCtx->shdr[i-1].sh_size;
+    gCtx->shdr[i].sh_size = gCtx->sect[i]->size;
+  }
 
-  // Dump all
-  fwrite(&elf_header, 1, sizeof(elf_header), gCtx->outfp);
-  fwrite(&null_header, 1, sizeof(null_header), gCtx->outfp);
-  fwrite(&shstrtab_header, 1, sizeof(shstrtab_header), gCtx->outfp);
-  fwrite(&strtab_header, 1, sizeof(strtab_header), gCtx->outfp);
-  fwrite(&symtab_header, 1, sizeof(symtab_header), gCtx->outfp);
-  fwrite(&text_header, 1, sizeof(text_header), gCtx->outfp);
-  fwrite(shstrtab->data, 1, shstrtab->size, gCtx->outfp);
-  fwrite(strtab->data, 1, strtab->size, gCtx->outfp);
-  fwrite(symtab->data, 1, symtab->size, gCtx->outfp);
-  fwrite(text->data, 1, text->size, gCtx->outfp);
+  // Dump headers
+  write_data(&gCtx->shdr, sizeof(Elf64_Shdr) * S_NUM);
+
+  // Dump data
+  for (int i = 1; i < S_NUM; i++) {
+    write_data(gCtx->sect[i]->data, gCtx->sect[i]->size);
+  }
 }
 
 //
@@ -272,14 +289,10 @@ static const char *i2s(Instr instr) {
   case I_CALL:  return "call";
   case I_CMP:   return "cmp";
   case I_CQO:   return "cqo";
-  case I_DIV:   return "div";
   case I_IDIV:  return "idiv";
-  case I_Jcc:   return "jcc";
   case I_JMP:   return "jmp";
   case I_LEA:   return "lea";
-  case I_LEAVE: return "leave";
   case I_MOV:   return "mov";
-  case I_MOVS:  return "movs";
   case I_MOVSX: return "movsx";
   case I_MOVZX: return "movzx";
   case I_IMUL:  return "imul";
@@ -291,9 +304,7 @@ static const char *i2s(Instr instr) {
   case I_SAR:   return "sar";
   case I_SETcc: return "setcc";
   case I_SHL:   return "shl";
-  case I_SHR:   return "shr";
   case I_SUB:   return "sub";
-  case I_TEST:  return "test";
   case I_XOR:   return "xor";
   }
   return NULL;
@@ -348,50 +359,55 @@ static void emit_section(const char *name) {
   }
 }
 
-static void emit_symbol(uint8_t sym_type, const char *sym_name, bool is_global) {
+static void emit_symbol(int sym_type, const char *sym_name, bool is_global) {
   if (gCtx->dump_asm) {
     if (is_global) {
       emit_global(sym_name);
     }
     emit_fmt("%s:", sym_name);
+  } else {
+    elf_symbol(sym_type, sym_name, is_global);
+  }
+}
+
+static void emit_asm(Instr instr, Op op, uint64_t arg1, uint64_t arg2) {
+  switch (op) {
+  case OP_NONE:
+    emit_fmt("  %s", i2s(instr));
+    break;
+  case OP_REG:
+    emit_fmt("  %s %s", i2s(instr), reg2s(arg1));
+    break;
+  case OP_REG_REG:
+    emit_fmt("  %s %s, %s", i2s(instr), reg2s(arg1), reg2s(arg2));
+    break;
+  case OP_IMM:
+    // TODO(Kagami): unsigned long?
+    emit_fmt("  %s %ld", i2s(instr), arg1);
+    break;
+  case OP_REG_IMM:
+    emit_fmt("  %s %s, %ld", i2s(instr), reg2s(arg1), arg2);
+    break;
+  case OP_MEM:
+    emit_fmt("  %s %s", i2s(instr), off2s(arg1));
+    break;
+  case OP_MEM_REG:
+    emit_fmt("  %s %s, %s", i2s(instr), off2s(arg1), reg2s(arg2));
+    break;
+  case OP_MEM_IMM:
+    emit_fmt("  %s %s, %ld", i2s(instr), off2s(arg1), arg2);
+    break;
+  case OP_REG_MEM:
+    emit_fmt("  %s %s, %s", i2s(instr), reg2s(arg1), off2s(arg2));
+    break;
   }
 }
 
 // TODO(Kagami): Implement with va_arg.
 static void emit2(Instr instr, Op op, uint64_t arg1, uint64_t arg2) {
-  if (gCtx->dump_asm) {
-    switch (op) {
-    case OP_NONE:
-      emit_fmt("  %s", i2s(instr));
-      break;
-    case OP_REG:
-      emit_fmt("  %s %s", i2s(instr), reg2s(arg1));
-      break;
-    case OP_REG_REG:
-      emit_fmt("  %s %s, %s", i2s(instr), reg2s(arg1), reg2s(arg2));
-      break;
-    case OP_IMM:
-      // TODO(Kagami): unsigned long?
-      emit_fmt("  %s %ld", i2s(instr), arg1);
-      break;
-    case OP_REG_IMM:
-      emit_fmt("  %s %s, %ld", i2s(instr), reg2s(arg1), arg2);
-      break;
-    case OP_MEM:
-      emit_fmt("  %s %s", i2s(instr), off2s(arg1));
-      break;
-    case OP_MEM_REG:
-      emit_fmt("  %s %s, %s", i2s(instr), off2s(arg1), reg2s(arg2));
-      break;
-    case OP_MEM_IMM:
-      emit_fmt("  %s %s, %ld", i2s(instr), off2s(arg1), arg2);
-      break;
-    case OP_REG_MEM:
-      emit_fmt("  %s %s, %s", i2s(instr), reg2s(arg1), off2s(arg2));
-      break;
-    }
-  } else {
-  }
+  if (gCtx->dump_asm) { emit_asm(instr, op, arg1, arg2); return; }
+  Code code = { 0 };
+  elf_text(&code);
 }
 
 static void emit1(Instr instr, Op op, uint64_t arg) {
@@ -934,7 +950,9 @@ static void gen_node(Node *node) {
       gen_node(node->lhs);
       emit1(I_POP, OP_REG, RAX);
     }
-    emit_fmt("  jmp .L.return.%s", gCtx->funcname);
+    if (gCtx->dump_asm) {
+      emit_fmt("  jmp .L.return.%s", gCtx->funcname);
+    }
     return;
   case ND_CAST:
     gen_node(node->lhs);
