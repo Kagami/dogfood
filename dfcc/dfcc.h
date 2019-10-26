@@ -311,6 +311,29 @@ void stream_setpos(const char *pos);
 bool stream_atbol(void);
 
 //
+// vec.c
+//
+
+typedef struct {
+  const void **elems;
+  size_t size;
+  size_t cap;
+} Vec;
+
+Vec *new_vec(void);
+void vec_push(Vec *v, const void *elem);
+
+typedef struct {
+  unsigned char *data;
+  size_t size;
+  size_t cap;
+} Buf;
+
+Buf *new_buf(void);
+size_t buf_write(Buf *b, const void *chunk, size_t chunk_size);
+size_t buf_writestr(Buf *b, const char *str);
+
+//
 // map.c
 //
 

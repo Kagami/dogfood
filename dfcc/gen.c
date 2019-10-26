@@ -85,11 +85,6 @@ typedef struct {
   char len;
 } Code;
 
-typedef struct {
-  uint8_t *data;
-  size_t size;
-} Section;
-
 #define S_NUM 5
 #define SID_SHSTRTAB 1
 #define SID_STRTAB 2
@@ -100,7 +95,7 @@ typedef struct {
   bool dump_asm;
   FILE *outfp;
   Elf64_Shdr shdr[S_NUM];
-  Section *sect[S_NUM];
+  Buf *sect[S_NUM];
   int labelseq;
   int brkseq;
   int contseq;
@@ -110,47 +105,25 @@ typedef struct {
 static GenContext *gCtx;
 
 //
-// Helpers
+// ELF
 //
-
-static Section *new_section() {
-  Section *s = calloc(1, sizeof(Section));
-  return s;
-}
-
-static size_t section_write(Section *s, const void *chunk, size_t chunk_size) {
-  // TODO(Kagami): use capacity
-  s->data = realloc(s->data, s->size + chunk_size);
-  memcpy(s->data + s->size, chunk, chunk_size);
-  const size_t old_size = s->size;
-  s->size += chunk_size;
-  return old_size;
-}
-
-static size_t section_writestr(Section *s, const char *str) {
-  return section_write(s, str, strlen(str) + 1);
-}
 
 static void write_data(const void *data, size_t data_size) {
   fwrite(data, 1, data_size, gCtx->outfp);
 }
 
-//
-// ELF
-//
-
 static void elf_symbol(int sym_type, const char *sym_name, bool is_global) {
   Elf64_Sym entry = { 0 };
-  entry.st_name = section_writestr(gCtx->sect[SID_STRTAB], sym_name);
+  entry.st_name = buf_writestr(gCtx->sect[SID_STRTAB], sym_name);
   entry.st_value = 0;
   entry.st_info = (is_global ? STB_GLOBAL : STB_LOCAL) << 4 | sym_type;
   entry.st_shndx = 4;
-  section_write(gCtx->sect[SID_SYMTAB], &entry, sizeof(Elf64_Sym));
+  buf_write(gCtx->sect[SID_SYMTAB], &entry, sizeof(Elf64_Sym));
 }
 
 static void elf_text(Code *code) {
   assert(code->len <= 15);
-  section_write(gCtx->sect[SID_TEXT], code->buf, code->len);
+  buf_write(gCtx->sect[SID_TEXT], code->buf, code->len);
 }
 
 static void elf_start() {
@@ -184,28 +157,28 @@ static void elf_start() {
 
   // Create sections
   for (int i = 1; i < S_NUM; i++) {
-    gCtx->sect[i] = new_section();
+    gCtx->sect[i] = new_buf();
   }
-  Section *shstrtab = gCtx->sect[SID_SHSTRTAB];
+  Buf *shstrtab = gCtx->sect[SID_SHSTRTAB];
 
   // Empty section
-  section_writestr(shstrtab, "");
+  buf_writestr(shstrtab, "");
 
   // Section names section
   Elf64_Shdr *shstrtab_header = &gCtx->shdr[SID_SHSTRTAB];
-  shstrtab_header->sh_name = section_writestr(shstrtab, ".shstrtab");
+  shstrtab_header->sh_name = buf_writestr(shstrtab, ".shstrtab");
   shstrtab_header->sh_type = SHT_STRTAB;
   shstrtab_header->sh_addralign = 1;
 
   // Symbol names section
   Elf64_Shdr *strtab_header = &gCtx->shdr[SID_STRTAB];
-  strtab_header->sh_name = section_writestr(shstrtab, ".strtab");
+  strtab_header->sh_name = buf_writestr(shstrtab, ".strtab");
   strtab_header->sh_type = SHT_STRTAB;
   strtab_header->sh_addralign = 1;
 
   // Symbol section
   Elf64_Shdr *symtab_header = &gCtx->shdr[SID_SYMTAB];
-  symtab_header->sh_name = section_writestr(shstrtab, ".symtab");
+  symtab_header->sh_name = buf_writestr(shstrtab, ".symtab");
   symtab_header->sh_type = SHT_SYMTAB;
   symtab_header->sh_link = SID_STRTAB;
   symtab_header->sh_info = 2; // FIXME
@@ -213,14 +186,14 @@ static void elf_start() {
   symtab_header->sh_entsize = sizeof(Elf64_Sym);
   // Null symbol
   Elf64_Sym null_entry = { 0 };
-  section_writestr(gCtx->sect[SID_STRTAB], "");
-  section_write(gCtx->sect[SID_SYMTAB], &null_entry, sizeof(Elf64_Sym));
+  buf_writestr(gCtx->sect[SID_STRTAB], "");
+  buf_write(gCtx->sect[SID_SYMTAB], &null_entry, sizeof(Elf64_Sym));
   // Text section symbol
   elf_symbol(STT_SECTION, "", false);
 
   // Text section
   Elf64_Shdr *text_header = &gCtx->shdr[SID_TEXT];
-  text_header->sh_name = section_writestr(shstrtab, ".text");
+  text_header->sh_name = buf_writestr(shstrtab, ".text");
   text_header->sh_type = SHT_PROGBITS;
   text_header->sh_flags = SHF_EXECINSTR | SHF_ALLOC;
   text_header->sh_addralign = 16;
