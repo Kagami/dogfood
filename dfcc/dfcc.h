@@ -338,9 +338,10 @@ size_t buf_writestr(Buf *b, const char *str);
 //
 
 typedef struct {
-  const char **key;
-  const void **val;
+  const char **keys;
+  const void **vals;
   size_t size;
+  size_t nused;
 } Map;
 
 Map *new_map(void);
