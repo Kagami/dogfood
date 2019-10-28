@@ -39,45 +39,101 @@ static const char *gRegNames[] = {
   "r15b", "r15w", "r15d", "r15",
 };
 
-// Instruction operand type
-typedef enum {
-  OP_NONE,
-  OP_REG,
-  OP_REG_REG,
-  OP_IMM,
-  OP_REG_IMM,
-  OP_MEM,
-  OP_MEM_REG,
-  OP_MEM_IMM,
-  OP_REG_MEM,
-} Op;
-
 // Instructions
 // Borrowed from lacc ((c) 2015 Lars Kirkholt Melhus, MIT)
 typedef enum {
   I_ADD = 0,
-  I_AND = I_ADD + 2,
-  I_CALL = I_AND + 3,
-  I_CMP = I_CALL + 2,
-  I_CQO = I_CMP + 3,
-  I_IDIV = I_CQO + 1,
-  I_JMP = I_IDIV + 1,
-  I_LEA = I_JMP + 1,
-  I_MOV = I_LEA + 1,
-  I_MOVSX = I_MOV + 5,
-  I_MOVZX = I_MOVSX + 2,
-  I_IMUL = I_MOVZX + 2,
-  I_NOT = I_IMUL + 1,
-  I_OR = I_NOT + 1,
-  I_POP = I_OR + 2,
-  I_PUSH = I_POP + 1,
-  I_RET = I_PUSH + 3,
-  I_SAR = I_RET + 1,
-  I_SETcc = I_SAR + 2,
-  I_SHL = I_SETcc + 1,
-  I_SUB = I_SHL + 2,
-  I_XOR = I_SUB + 2,
-} Instr;
+  I_OR,
+  I_AND,
+  I_SUB,
+  I_XOR,
+  I_CMP,
+  I_PUSH,
+  I_POP,
+  I_IMUL,
+  I_MOV,
+  I_LEA,
+  I_CQO,
+  I_SHL,
+  I_SAR,
+  I_RETN,
+  I_CALL,
+  I_JMP,
+  I_NOT,
+  I_IDIV,
+  I_Jcc,
+  I_SETcc,
+  I_MOVZX,
+  I_MOVSX,
+} Instruction;
+
+// Instruction operand(s)
+typedef enum {
+  OP_NONE = 0,
+  OP_IMM = 1,
+  OP_REG = 2,
+  OP_MEM = 4,
+  OP_REG_REG = 8,
+  OP_MEM_REG = 16,
+  OP_REG_MEM = 32,
+  OP_REG_IMM = 64,
+  OP_MEM_IMM = 128,
+} Operand;
+
+// Instruction encoding rules
+typedef struct {
+  Instruction inst;
+  const char *mnemonic;
+  uint8_t opcodes[3];
+} Encoding;
+
+static Encoding gEncodings[] = {
+  {I_ADD,   "add",   {0x00}},
+
+  {I_OR,    "or",    {0x08}},
+
+  {I_AND,   "and",   {0x20}},
+
+  {I_SUB,   "sub",   {0x28}},
+
+  {I_XOR,   "xor",   {0x30}},
+
+  {I_CMP,   "cmp",   {0x38}},
+
+  {I_PUSH,  "push",  {0x50}},
+
+  {I_POP,   "pop",   {0x58}},
+
+  {I_IMUL,  "imul",  {0x69}},
+
+  {I_MOV,   "mov",   {0x88}},
+
+  {I_LEA,   "lea",   {0x8D}},
+
+  {I_CQO,   "cqo",   {0x99}},
+
+  {I_SHL,   "shl",   {0xC0}},
+
+  {I_SAR,   "sar",   {0xC0}},
+
+  {I_RETN,  "ret",  {0xC3}},
+
+  {I_CALL,  "call",  {0xE8}},
+
+  {I_JMP,   "jmp",   {0xE9}},
+
+  {I_NOT,   "not",   {0xF6}},
+
+  {I_IDIV,  "idiv",  {0xF6}},
+
+  {I_Jcc,   "j",     {0x0F, 0x80}},
+
+  {I_SETcc, "set",   {0x0F, 0x91}},
+
+  {I_MOVZX, "movzx", {0x0F, 0xB6}},
+
+  {I_MOVSX, "movsx", {0x0F, 0xBE}},
+};
 
 // Binary code for single instruction, 15 bytes max
 typedef struct {
@@ -255,32 +311,8 @@ static const char *reg2s(Reg reg) {
   return gRegNames[i*4 + j];
 }
 
-static const char *i2s(Instr instr) {
-  switch (instr) {
-  case I_ADD:   return "add";
-  case I_AND:   return "and";
-  case I_CALL:  return "call";
-  case I_CMP:   return "cmp";
-  case I_CQO:   return "cqo";
-  case I_IDIV:  return "idiv";
-  case I_JMP:   return "jmp";
-  case I_LEA:   return "lea";
-  case I_MOV:   return "mov";
-  case I_MOVSX: return "movsx";
-  case I_MOVZX: return "movzx";
-  case I_IMUL:  return "imul";
-  case I_NOT:   return "not";
-  case I_OR:    return "or";
-  case I_POP:   return "pop";
-  case I_PUSH:  return "push";
-  case I_RET:   return "ret";
-  case I_SAR:   return "sar";
-  case I_SETcc: return "setcc";
-  case I_SHL:   return "shl";
-  case I_SUB:   return "sub";
-  case I_XOR:   return "xor";
-  }
-  return NULL;
+static const char *i2s(Instruction inst) {
+  return gEncodings[inst].mnemonic;
 }
 
 static const char *off2s(uint64_t arg) {
@@ -343,52 +375,79 @@ static void emit_symbol(int sym_type, const char *sym_name, bool is_global) {
   }
 }
 
-static void emit_asm(Instr instr, Op op, uint64_t arg1, uint64_t arg2) {
+static void emit_asm(Instruction inst, Operand op, uint64_t arg1, uint64_t arg2) {
   switch (op) {
   case OP_NONE:
-    emit_fmt("  %s", i2s(instr));
-    break;
-  case OP_REG:
-    emit_fmt("  %s %s", i2s(instr), reg2s(arg1));
-    break;
-  case OP_REG_REG:
-    emit_fmt("  %s %s, %s", i2s(instr), reg2s(arg1), reg2s(arg2));
+    emit_fmt("  %s", i2s(inst));
     break;
   case OP_IMM:
     // TODO(Kagami): unsigned long?
-    emit_fmt("  %s %ld", i2s(instr), arg1);
+    emit_fmt("  %s %ld", i2s(inst), arg1);
     break;
-  case OP_REG_IMM:
-    emit_fmt("  %s %s, %ld", i2s(instr), reg2s(arg1), arg2);
+  case OP_REG:
+    emit_fmt("  %s %s", i2s(inst), reg2s(arg1));
     break;
   case OP_MEM:
-    emit_fmt("  %s %s", i2s(instr), off2s(arg1));
+    emit_fmt("  %s %s", i2s(inst), off2s(arg1));
+    break;
+  case OP_REG_REG:
+    emit_fmt("  %s %s, %s", i2s(inst), reg2s(arg1), reg2s(arg2));
     break;
   case OP_MEM_REG:
-    emit_fmt("  %s %s, %s", i2s(instr), off2s(arg1), reg2s(arg2));
-    break;
-  case OP_MEM_IMM:
-    emit_fmt("  %s %s, %ld", i2s(instr), off2s(arg1), arg2);
+    emit_fmt("  %s %s, %s", i2s(inst), off2s(arg1), reg2s(arg2));
     break;
   case OP_REG_MEM:
-    emit_fmt("  %s %s, %s", i2s(instr), reg2s(arg1), off2s(arg2));
+    emit_fmt("  %s %s, %s", i2s(inst), reg2s(arg1), off2s(arg2));
+    break;
+  case OP_REG_IMM:
+    emit_fmt("  %s %s, %ld", i2s(inst), reg2s(arg1), arg2);
+    break;
+  case OP_MEM_IMM:
+    emit_fmt("  %s %s, %ld", i2s(inst), off2s(arg1), arg2);
     break;
   }
 }
 
-// TODO(Kagami): Implement with va_arg.
-static void emit2(Instr instr, Op op, uint64_t arg1, uint64_t arg2) {
-  if (gCtx->dump_asm) { emit_asm(instr, op, arg1, arg2); return; }
+static void emit_code(Instruction inst, Operand op, uint64_t arg1, uint64_t arg2) {
   Code code = { 0 };
+  switch (op) {
+  case OP_NONE:
+    break;
+  case OP_IMM:
+    break;
+  case OP_REG:
+    break;
+  case OP_MEM:
+    break;
+  case OP_REG_REG:
+    break;
+  case OP_MEM_REG:
+    break;
+  case OP_REG_MEM:
+    break;
+  case OP_REG_IMM:
+    break;
+  case OP_MEM_IMM:
+    break;
+  }
   elf_text(&code);
 }
 
-static void emit1(Instr instr, Op op, uint64_t arg) {
-  emit2(instr, op, arg, 0);
+// TODO(Kagami): Implement with va_arg.
+static void emit2(Instruction inst, Operand op, uint64_t arg1, uint64_t arg2) {
+  if (gCtx->dump_asm) {
+    emit_asm(inst, op, arg1, arg2);
+  } else {
+    emit_code(inst, op, arg1, arg2);
+  }
 }
 
-static void emit0(Instr instr) {
-  emit2(instr, OP_NONE, 0, 0);
+static void emit1(Instruction inst, Operand op, uint64_t arg) {
+  emit2(inst, op, arg, 0);
+}
+
+static void emit0(Instruction inst) {
+  emit2(inst, OP_NONE, 0, 0);
 }
 
 //
@@ -1028,7 +1087,7 @@ static void gen_text(Program *prog) {
     emit_label("return", gCtx->funcname);
     emit2(I_MOV, OP_REG_REG, RSP, RBP);
     emit1(I_POP, OP_REG, RBP);
-    emit0(I_RET);
+    emit0(I_RETN);
   }
 }
 
